@@ -184,5 +184,10 @@
  *  Home Page
  */
 .img-main {
-    max-width: 30%;
+    max-width: 40%;
+}
+
+body > .container {
+    margin-top: $spacing-unit;
+    margin-bottom: $spacing-unit;
 }
