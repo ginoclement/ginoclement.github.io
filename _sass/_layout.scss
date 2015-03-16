@@ -184,10 +184,18 @@
  *  Home Page
  */
 .img-main {
-    max-width: 40%;
+    margin-bottom: $spacing-unit;
+    max-width: 100%;
+    min-width: 100px;
 }
 
 body > .container {
     margin-top: $spacing-unit;
     margin-bottom: $spacing-unit;
 }
+
+.social-media-list {
+    margin-left: auto;
+    margin-right: auto;
+}
+
