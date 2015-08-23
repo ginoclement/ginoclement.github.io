@@ -1,7 +1,7 @@
 # Site settings
 title: Gino Clement
 email: your-email@domain.com
-description: Still configuring Jekyll, unforunately it is the middle of finals week so I will be a little slow getting this set up. Check out some of my projects on Github.
+description: Still configuring Jekyll, unfortunately it is the middle of finals week so I will be a little slow getting this set up. Check out some of my projects on Github.
 baseurl: "" # the subpath of your site, e.g. /blog/
 url: "http://ginoclement.com" # the base hostname & protocol for your site
 
