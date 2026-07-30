@@ -1,41 +1,19 @@
----
-layout: default
----
-<div class="row">
-  <div class="col-xs-3">      
-    <img class="img-rounded img-main" alt="It's me!" src="/assets/img/main_img.png" />
-    <ul class="social-media-list list-inline">
-      {% for social in site.social %}
-        <li>
-          <a href="{{social.url}}{{social.username}}">
-            <img src="{{ social.site || downcase | prepend: '/assets/icons/' | append: '.png' }}" alt="{{ social.site }}" />
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-
-  <div class="col-xs-6">
-    <p>{{ site.description }}</p>
-  </div>
-
-  <div class="col-xs-3">
-    <div class="row">
-      <h3>Posts</h3>
-      <ul class="post-list">
-      {% for post in site.posts %}
-        <li>
-          <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
-        </li>
-      {% endfor %}
-      </ul>
-    </div>
-    <div class="row">
-      <h3>Notes</h3>
-      <ul class="post-list">
-      {% for note in site.notes %}
-        <a class="note-link" href="{{ note.url | prepend: site.baseurl }}">{{ note.title }}</a>
-      {% endfor %}
-    </div>
-  </div>
-</div>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Gino Clement — an interactive 3D gallery of my photography, arranged by dominant color."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Gino Clement</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to view this site.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

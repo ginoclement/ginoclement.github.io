@@ -1,2 +1,6 @@
-_site
-.sass-cache
+node_modules/
+dist/
+.env
+.env.local
+__pycache__/
+.DS_Store
