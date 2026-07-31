@@ -107,6 +107,39 @@ body {
   color: #77778c;
 }
 
+.folder-input {
+  background: #1a1a22;
+  color: #e8e8ee;
+  border: 1px solid #34344a;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 14px;
+  width: 160px;
+}
+
+.folder-input:focus {
+  outline: none;
+  border-color: #5972c6;
+}
+
+.folder-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 13px;
+}
+
+.chip.active {
+  background: #4257a8;
+  border-color: #5972c6;
+}
+
 button {
   background: #23232e;
   color: #e8e8ee;

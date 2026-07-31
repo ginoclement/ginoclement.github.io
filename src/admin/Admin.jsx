@@ -27,6 +27,46 @@ function rgbCss([r, g, b]) {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+function folderOf(name) {
+  const i = name.lastIndexOf('/');
+  return i === -1 ? '' : name.slice(0, i);
+}
+
+function baseOf(name) {
+  return name.slice(name.lastIndexOf('/') + 1);
+}
+
+function cleanFolder(input) {
+  return input
+    .trim()
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join('/');
+}
+
+/** Defers fetching the image until the card is near the viewport. */
+function LazyImage({src, alt}) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      {rootMargin: '400px'}
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return <img ref={ref} src={visible ? src : undefined} alt={alt} loading="lazy" />;
+}
+
 export default function Admin() {
   const [token, setToken] = useState(() => {
     const saved = sessionStorage.getItem(TOKEN_KEY);
@@ -39,6 +79,8 @@ export default function Admin() {
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [compressUploads, setCompressUploads] = useState(true);
+  const [uploadFolder, setUploadFolder] = useState('');
+  const [folderFilter, setFolderFilter] = useState(null);
   const signInRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -113,7 +155,9 @@ export default function Admin() {
 
   const uploadFiles = (files) =>
     run(`Uploading ${files.length} photo(s)…`, async () => {
+      const folder = cleanFolder(uploadFolder);
       for (const file of files) {
+        const targetName = folder ? `${folder}/${file.name}` : file.name;
         setUploads((u) => [...u, {name: file.name, state: 'processing'}]);
         try {
           let body = file;
@@ -136,9 +180,9 @@ export default function Admin() {
           setUploads((u) =>
             u.map((x) => (x.name === file.name ? {...x, state: 'uploading'} : x))
           );
-          await api.upload(token, file.name, body, meta);
+          await api.upload(token, targetName, body, meta);
           const thumb = await makeThumbnail(body);
-          const {photo} = await api.uploadThumb(token, file.name, thumb);
+          const {photo} = await api.uploadThumb(token, targetName, thumb);
           setPhotos((p) => [
             ...(p ?? []).filter((x) => x.name !== photo.name),
             photo
@@ -232,6 +276,31 @@ export default function Admin() {
       setSelected(new Set());
     });
 
+  const moveSelected = () => {
+    const input = window.prompt(
+      'Move selected photos to folder (empty for top level):',
+      folderFilter ?? ''
+    );
+    if (input === null) return;
+    const folder = cleanFolder(input);
+    run('Moving…', async () => {
+      let moved = 0;
+      for (const name of selected) {
+        const target = folder ? `${folder}/${baseOf(name)}` : baseOf(name);
+        if (target === name) continue;
+        const {photo} = await api.update(token, name, {name: target});
+        setPhotos((p) =>
+          p
+            .map((x) => (x.name === name ? photo : x))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        moved++;
+      }
+      setSelected(new Set());
+      return `Moved ${moved} photo(s) to ${folder || 'top level'}.`;
+    });
+  };
+
   const analyzeMissing = () =>
     run('Analyzing photos without colors…', async () => {
       const missing = photos.filter((p) => !p.color);
@@ -300,6 +369,11 @@ export default function Admin() {
 
   const published = photos?.filter((p) => p.published).length ?? 0;
   const missingColor = photos?.filter((p) => !p.color).length ?? 0;
+  const folders = [...new Set((photos ?? []).map((p) => folderOf(p.name)))].sort();
+  const visiblePhotos =
+    folderFilter === null
+      ? photos
+      : photos?.filter((p) => folderOf(p.name) === folderFilter);
 
   return (
     <div
@@ -339,6 +413,20 @@ export default function Admin() {
         >
           Upload photos
         </button>
+        <input
+          className="folder-input"
+          type="text"
+          list="folder-list"
+          placeholder="folder (optional)"
+          value={uploadFolder}
+          onChange={(e) => setUploadFolder(e.target.value)}
+          title="Uploads go into this folder in the bucket"
+        />
+        <datalist id="folder-list">
+          {folders.filter(Boolean).map((f) => (
+            <option key={f} value={f} />
+          ))}
+        </datalist>
         <input
           ref={fileInputRef}
           type="file"
@@ -380,9 +468,30 @@ export default function Admin() {
             <span className="sel-count">{selected.size} selected</span>
             <button onClick={() => bulk({published: true})}>Publish</button>
             <button onClick={() => bulk({published: false})}>Unpublish</button>
+            <button onClick={moveSelected}>Move to folder…</button>
           </>
         )}
       </div>
+
+      {folders.length > 1 && (
+        <div className="folder-chips">
+          <button
+            className={`chip${folderFilter === null ? ' active' : ''}`}
+            onClick={() => setFolderFilter(null)}
+          >
+            All ({photos?.length ?? 0})
+          </button>
+          {folders.map((f) => (
+            <button
+              key={f || '(top)'}
+              className={`chip${folderFilter === f ? ' active' : ''}`}
+              onClick={() => setFolderFilter(f)}
+            >
+              {f || 'top level'} ({photos?.filter((p) => folderOf(p.name) === f).length})
+            </button>
+          ))}
+        </div>
+      )}
 
       {status && <p className="status">{status}</p>}
       {error && <p className="error">{error}</p>}
@@ -404,7 +513,7 @@ export default function Admin() {
       <p className="drop-hint">…or drag &amp; drop images anywhere on this page.</p>
 
       <div className="grid">
-        {photos?.map((photo) => (
+        {visiblePhotos?.map((photo) => (
           <PhotoCard
             key={photo.name}
             photo={photo}
@@ -431,10 +540,9 @@ function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompu
   return (
     <div className={`card${selected ? ' selected' : ''}${photo.published ? '' : ' draft'}`}>
       <div className="thumb" style={{background: photo.color ? rgbCss(photo.color) : '#222'}}>
-        <img
+        <LazyImage
           src={imageUrl(photo.name, {thumb: true, v: photo.uploadedAt})}
           alt={photo.name}
-          loading="lazy"
         />
         <input
           type="checkbox"
@@ -449,7 +557,7 @@ function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompu
       </div>
       <div className="card-body">
         <p className="name" title={photo.name}>
-          {photo.name}
+          {baseOf(photo.name)}
           {photo.size != null && <span className="size"> · {formatBytes(photo.size)}</span>}
         </p>
         {photo.palette ? (

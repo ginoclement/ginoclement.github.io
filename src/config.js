@@ -15,10 +15,15 @@ const IMAGE_BASE_URL = (
   (API_BASE_URL ? `${API_BASE_URL}/images` : '/images')
 ).replace(/\/+$/, '');
 
+// Encodes a photo name for use in a URL path, keeping folder slashes.
+export function encodePhotoPath(name) {
+  return name.split('/').map(encodeURIComponent).join('/');
+}
+
 export function imageUrl(name, {thumb = false, v} = {}) {
   const params = new URLSearchParams();
   if (thumb) params.set('thumb', '1');
   if (v) params.set('v', String(v));
   const query = params.toString();
-  return `${IMAGE_BASE_URL}/${encodeURIComponent(name)}${query ? `?${query}` : ''}`;
+  return `${IMAGE_BASE_URL}/${encodePhotoPath(name)}${query ? `?${query}` : ''}`;
 }

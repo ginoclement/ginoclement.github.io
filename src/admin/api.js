@@ -1,4 +1,4 @@
-import {API_BASE_URL} from '../config.js';
+import {API_BASE_URL, encodePhotoPath} from '../config.js';
 
 class AuthError extends Error {}
 
@@ -21,7 +21,7 @@ export const api = {
   listPhotos: (token) => request(token, 'GET', '/api/photos'),
   sync: (token) => request(token, 'POST', '/api/sync'),
   upload: (token, name, file, meta) =>
-    request(token, 'PUT', `/api/photos/${encodeURIComponent(name)}`, {
+    request(token, 'PUT', `/api/photos/${encodePhotoPath(name)}`, {
       body: file,
       headers: {
         'content-type': file.type || 'image/jpeg',
@@ -29,15 +29,15 @@ export const api = {
       }
     }),
   uploadThumb: (token, name, blob) =>
-    request(token, 'PUT', `/api/photos/${encodeURIComponent(name)}/thumb`, {
+    request(token, 'PUT', `/api/photos/${encodePhotoPath(name)}?thumb=1`, {
       body: blob,
       headers: {'content-type': blob.type || 'image/jpeg'}
     }),
   update: (token, name, patch) =>
-    request(token, 'PATCH', `/api/photos/${encodeURIComponent(name)}`, {
+    request(token, 'PATCH', `/api/photos/${encodePhotoPath(name)}`, {
       body: JSON.stringify(patch),
       headers: {'content-type': 'application/json'}
     }),
   remove: (token, name) =>
-    request(token, 'DELETE', `/api/photos/${encodeURIComponent(name)}`)
+    request(token, 'DELETE', `/api/photos/${encodePhotoPath(name)}`)
 };

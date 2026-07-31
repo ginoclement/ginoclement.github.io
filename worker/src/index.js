@@ -20,6 +20,8 @@
  */
 
 const MANIFEST_KEY = '_manifest.json';
+const THUMB_PREFIX = '_thumbs/';
+const LEGACY_THUMB_PREFIX = '_thumb_';
 const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|avif|gif)$/i;
@@ -134,13 +136,32 @@ function json(body, status, extraHeaders) {
   });
 }
 
-/** Extracts and validates the photo name from /api/photos/<name>. */
+/**
+ * Validates a photo key. Folder paths are allowed ("trips/utah/arch.jpg");
+ * empty segments, traversal, and reserved _-prefixed segments are not.
+ */
+function validName(name) {
+  if (!name || name.includes('..')) return false;
+  const segments = name.split('/');
+  return segments.every((s) => s && !s.startsWith('_') && s !== '.');
+}
+
+/** Extracts and validates the photo name from a route path. */
 function photoName(pathname, prefix) {
   const name = decodeURIComponent(pathname.slice(prefix.length));
-  if (!name || name.includes('/') || name.startsWith('_') || name.includes('..')) {
-    return null;
-  }
-  return name;
+  return validName(name) ? name : null;
+}
+
+async function getThumb(env, name) {
+  return (
+    (await env.PHOTOS.get(THUMB_PREFIX + name)) ??
+    (await env.PHOTOS.get(LEGACY_THUMB_PREFIX + name))
+  );
+}
+
+async function deleteThumbs(env, name) {
+  await env.PHOTOS.delete(THUMB_PREFIX + name);
+  await env.PHOTOS.delete(LEGACY_THUMB_PREFIX + name);
 }
 
 // ------------------------------------------------------------------- routes
@@ -174,7 +195,7 @@ async function handle(request, env) {
     // ?thumb=1 serves the small variant, falling back to the original.
     let obj = null;
     if (url.searchParams.get('thumb')) {
-      obj = await env.PHOTOS.get(`_thumb_${name}`);
+      obj = await getThumb(env, name);
     }
     if (!obj) obj = await env.PHOTOS.get(name);
     if (!obj) return json({error: 'not found'}, 404, cors);
@@ -207,7 +228,7 @@ async function handle(request, env) {
       const page = await env.PHOTOS.list({cursor, limit: 1000});
       for (const obj of page.objects) {
         const key = obj.key;
-        if (key.includes('/') || key.startsWith('_')) continue;
+        if (!validName(key)) continue;
         if (!IMAGE_EXTENSIONS.test(key)) continue;
         if (!manifest.photos[key]) {
           manifest.photos[key] = {published: false, uploadedAt: Date.now(), size: obj.size};
@@ -223,25 +244,25 @@ async function handle(request, env) {
     return json({added, updated, total: Object.keys(manifest.photos).length}, 200, cors);
   }
 
-  if (method === 'PUT' && url.pathname.startsWith('/api/photos/') && url.pathname.endsWith('/thumb')) {
-    const name = photoName(url.pathname.slice(0, -'/thumb'.length), '/api/photos/');
-    if (!name) return json({error: 'bad name'}, 400, cors);
-    const contentType = request.headers.get('content-type') ?? '';
-    if (!contentType.startsWith('image/')) {
-      return json({error: 'body must be an image'}, 400, cors);
-    }
-    const manifest = await loadManifest(env);
-    if (!manifest.photos[name]) return json({error: 'not found'}, 404, cors);
-    await env.PHOTOS.put(`_thumb_${name}`, request.body, {httpMetadata: {contentType}});
-    manifest.photos[name].thumb = true;
-    await saveManifest(env, manifest);
-    return json({photo: {name, ...manifest.photos[name]}}, 200, cors);
-  }
-
   if (url.pathname.startsWith('/api/photos/')) {
     const name = photoName(url.pathname, '/api/photos/');
     if (!name) return json({error: 'bad name'}, 400, cors);
     const manifest = await loadManifest(env);
+
+    // PUT ?thumb=1 stores the small variant for an existing photo.
+    if (method === 'PUT' && url.searchParams.get('thumb')) {
+      const contentType = request.headers.get('content-type') ?? '';
+      if (!contentType.startsWith('image/')) {
+        return json({error: 'body must be an image'}, 400, cors);
+      }
+      if (!manifest.photos[name]) return json({error: 'not found'}, 404, cors);
+      await env.PHOTOS.put(THUMB_PREFIX + name, request.body, {
+        httpMetadata: {contentType}
+      });
+      manifest.photos[name].thumb = true;
+      await saveManifest(env, manifest);
+      return json({photo: {name, ...manifest.photos[name]}}, 200, cors);
+    }
 
     if (method === 'PUT') {
       const contentType = request.headers.get('content-type') ?? '';
@@ -276,16 +297,41 @@ async function handle(request, env) {
       const entry = manifest.photos[name];
       if (!entry) return json({error: 'not found'}, 404, cors);
       const patch = await request.json();
+      let finalName = name;
+
+      // {name: "folder/new.jpg"} moves/renames the photo and its thumbnail.
+      if (typeof patch.name === 'string' && patch.name !== name) {
+        if (!validName(patch.name)) return json({error: 'bad target name'}, 400, cors);
+        if (manifest.photos[patch.name]) {
+          return json({error: 'target name already exists'}, 409, cors);
+        }
+        const obj = await env.PHOTOS.get(name);
+        if (obj) {
+          await env.PHOTOS.put(patch.name, obj.body, {httpMetadata: obj.httpMetadata});
+          await env.PHOTOS.delete(name);
+        }
+        const thumb = await getThumb(env, name);
+        if (thumb) {
+          await env.PHOTOS.put(THUMB_PREFIX + patch.name, thumb.body, {
+            httpMetadata: thumb.httpMetadata
+          });
+        }
+        await deleteThumbs(env, name);
+        delete manifest.photos[name];
+        manifest.photos[patch.name] = entry;
+        finalName = patch.name;
+      }
+
       if (typeof patch.published === 'boolean') entry.published = patch.published;
       if (Array.isArray(patch.color)) entry.color = patch.color;
       if (Array.isArray(patch.palette)) entry.palette = patch.palette;
       await saveManifest(env, manifest);
-      return json({photo: {name, ...entry}}, 200, cors);
+      return json({photo: {name: finalName, ...entry}}, 200, cors);
     }
 
     if (method === 'DELETE') {
       await env.PHOTOS.delete(name);
-      await env.PHOTOS.delete(`_thumb_${name}`);
+      await deleteThumbs(env, name);
       delete manifest.photos[name];
       await saveManifest(env, manifest);
       return json({deleted: name}, 200, cors);
