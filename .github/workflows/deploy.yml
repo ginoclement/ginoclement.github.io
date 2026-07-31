@@ -33,6 +33,9 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           VITE_IMAGE_BASE_URL: ${{ vars.IMAGE_BASE_URL }}
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
