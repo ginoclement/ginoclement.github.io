@@ -26,8 +26,12 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Optional: set an IMAGE_BASE_URL repository variable to serve
-          # photos from a CDN instead of /images on this site.
+          # Repository variables (Settings -> Secrets and variables -> Actions).
+          # API_BASE_URL: URL of the deployed Cloudflare Worker (worker/).
+          # GOOGLE_CLIENT_ID: OAuth client ID for the admin page sign-in.
+          # IMAGE_BASE_URL: optional override for where photos are served from.
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           VITE_IMAGE_BASE_URL: ${{ vars.IMAGE_BASE_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:

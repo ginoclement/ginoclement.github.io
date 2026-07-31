@@ -1,13 +1,10 @@
 import {imageUrl} from './config.js';
 
 export default function ImageBox({image, onClose}) {
-  if (!image) {
-    return <p className="hint">Click a dot!</p>;
-  }
+  if (!image) return null;
   return (
-    <div>
-      <p className="hint">Click outside the image to close!</p>
-      <div className="centered" onClick={onClose}>
+    <div className="lightbox" onClick={onClose}>
+      <div className="centered">
         <img src={imageUrl(image.name)} alt={image.name} />
       </div>
     </div>

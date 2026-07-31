@@ -1,9 +1,11 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import DeckGL from '@deck.gl/react';
 import {PointCloudLayer} from '@deck.gl/layers';
 import {COORDINATE_SYSTEM, OrbitView} from '@deck.gl/core';
-import imagesJson from './images.json';
+import bundledImages from './images.json';
+import {API_BASE_URL} from './config.js';
 import ImageBox from './ImageBox.jsx';
+import Projects from './Projects.jsx';
 import './App.css';
 
 const isMobile = window.matchMedia('(pointer: coarse)').matches;
@@ -51,13 +53,26 @@ function colorToPosition(color) {
 }
 
 export default function App() {
+  const [images, setImages] = useState(bundledImages.data);
   const [selected, setSelected] = useState(null);
+  const [showProjects, setShowProjects] = useState(false);
+
+  // Prefer the live gallery from the API; fall back to the bundled snapshot.
+  useEffect(() => {
+    if (!API_BASE_URL) return;
+    fetch(`${API_BASE_URL}/api/gallery`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+      .then((json) => {
+        if (json.data?.length) setImages(json.data);
+      })
+      .catch(() => {});
+  }, []);
 
   const layers = useMemo(
     () => [
       new PointCloudLayer({
         id: 'picture-point-layer',
-        data: imagesJson.data,
+        data: images,
         pickable: true,
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
         radiusPixels: isMobile ? 8 : 6,
@@ -66,11 +81,26 @@ export default function App() {
         onClick: ({object}) => setSelected(object)
       })
     ],
-    []
+    [images]
   );
 
   return (
     <div>
+      <header className="site-header">
+        <div className="brand">
+          <h1>Gino Clement</h1>
+          <p>photography, arranged by color — drag to orbit, click a dot to view</p>
+        </div>
+        <nav>
+          <button className="nav-btn" onClick={() => setShowProjects(true)}>
+            Projects
+          </button>
+          <a className="nav-btn" href="https://github.com/ginoclement" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </nav>
+      </header>
+      <Projects open={showProjects} onClose={() => setShowProjects(false)} />
       <ImageBox image={selected} onClose={() => setSelected(null)} />
       <div className="deck">
         <DeckGL

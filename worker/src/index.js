@@ -1,0 +1,279 @@
+/**
+ * API for the photo gallery, backed by a Cloudflare R2 bucket.
+ *
+ * Photos live at the root of the bucket (key = filename), so files uploaded
+ * straight through the Cloudflare dashboard are picked up too (see /api/sync).
+ * Gallery metadata (dominant color, palette, published flag) lives in a single
+ * JSON object at the reserved key `_manifest.json`.
+ *
+ * Public endpoints:
+ *   GET  /api/gallery          -> {data: [{name, color}]} of published photos
+ *   GET  /images/<name>        -> the image bytes
+ *
+ * Admin endpoints (require a Google OIDC ID token in `Authorization: Bearer`,
+ * verified against Google's JWKS and the ALLOWED_EMAILS allowlist):
+ *   GET    /api/photos         -> full manifest entries
+ *   PUT    /api/photos/<name>  -> upload image bytes (metadata in x-photo-meta)
+ *   PATCH  /api/photos/<name>  -> update {published, color, palette}
+ *   DELETE /api/photos/<name>  -> remove image and manifest entry
+ *   POST   /api/sync           -> register bucket objects missing from manifest
+ */
+
+const MANIFEST_KEY = '_manifest.json';
+const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|avif|gif)$/i;
+
+// ---------------------------------------------------------------- OIDC auth
+
+let jwksCache = {keys: null, fetchedAt: 0};
+
+async function getJwks() {
+  if (!jwksCache.keys || Date.now() - jwksCache.fetchedAt > 60 * 60 * 1000) {
+    const res = await fetch(JWKS_URL);
+    if (!res.ok) throw new Error('failed to fetch Google JWKS');
+    jwksCache = {keys: (await res.json()).keys, fetchedAt: Date.now()};
+  }
+  return jwksCache.keys;
+}
+
+function b64urlToBytes(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4 ? '='.repeat(4 - (s.length % 4)) : '';
+  return Uint8Array.from(atob(s + pad), (c) => c.charCodeAt(0));
+}
+
+function decodeJwtPart(part) {
+  return JSON.parse(new TextDecoder().decode(b64urlToBytes(part)));
+}
+
+/** Verifies a Google ID token; returns its payload or null. */
+async function verifyIdToken(token, env) {
+  try {
+    const [headerPart, payloadPart, signaturePart] = token.split('.');
+    if (!signaturePart) return null;
+    const header = decodeJwtPart(headerPart);
+    const payload = decodeJwtPart(payloadPart);
+
+    const jwk = (await getJwks()).find((k) => k.kid === header.kid);
+    if (!jwk || header.alg !== 'RS256') return null;
+    const key = await crypto.subtle.importKey(
+      'jwk', jwk, {name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256'}, false, ['verify']
+    );
+    const valid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      b64urlToBytes(signaturePart),
+      new TextEncoder().encode(`${headerPart}.${payloadPart}`)
+    );
+    if (!valid) return null;
+
+    const allowedEmails = (env.ALLOWED_EMAILS ?? '')
+      .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (!ISSUERS.includes(payload.iss)) return null;
+    if (payload.aud !== env.GOOGLE_CLIENT_ID) return null;
+    if (payload.exp * 1000 < Date.now()) return null;
+    if (!payload.email_verified) return null;
+    if (!allowedEmails.includes((payload.email ?? '').toLowerCase())) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function requireAuth(request, env) {
+  const auth = request.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  return token ? verifyIdToken(token, env) : null;
+}
+
+// ----------------------------------------------------------------- manifest
+
+async function loadManifest(env) {
+  const obj = await env.PHOTOS.get(MANIFEST_KEY);
+  if (!obj) return {photos: {}};
+  try {
+    return await obj.json();
+  } catch {
+    return {photos: {}};
+  }
+}
+
+function saveManifest(env, manifest) {
+  return env.PHOTOS.put(MANIFEST_KEY, JSON.stringify(manifest), {
+    httpMetadata: {contentType: 'application/json'}
+  });
+}
+
+function photoList(manifest) {
+  return Object.entries(manifest.photos)
+    .map(([name, entry]) => ({name, ...entry}))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ------------------------------------------------------------------ helpers
+
+function corsHeaders(request, env) {
+  const origin = request.headers.get('origin') ?? '';
+  const allowed = (env.ALLOWED_ORIGINS ?? '')
+    .split(',').map((o) => o.trim()).filter(Boolean);
+  if (!allowed.includes(origin)) return {};
+  return {
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'GET,PUT,PATCH,POST,DELETE,OPTIONS',
+    'access-control-allow-headers': 'authorization,content-type,x-photo-meta',
+    'access-control-max-age': '86400',
+    vary: 'origin'
+  };
+}
+
+function json(body, status, extraHeaders) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {'content-type': 'application/json', ...extraHeaders}
+  });
+}
+
+/** Extracts and validates the photo name from /api/photos/<name>. */
+function photoName(pathname, prefix) {
+  const name = decodeURIComponent(pathname.slice(prefix.length));
+  if (!name || name.includes('/') || name.startsWith('_') || name.includes('..')) {
+    return null;
+  }
+  return name;
+}
+
+// ------------------------------------------------------------------- routes
+
+async function handle(request, env) {
+  const url = new URL(request.url);
+  const cors = corsHeaders(request, env);
+  const method = request.method;
+
+  if (method === 'OPTIONS') {
+    return new Response(null, {status: 204, headers: cors});
+  }
+
+  // --- public ---
+
+  if (method === 'GET' && url.pathname === '/api/gallery') {
+    const manifest = await loadManifest(env);
+    const data = photoList(manifest)
+      .filter((p) => p.published && p.color)
+      .map(({name, color}) => ({name, color}));
+    return json({data}, 200, {
+      ...cors,
+      'access-control-allow-origin': '*',
+      'cache-control': 'public, max-age=60'
+    });
+  }
+
+  if (method === 'GET' && url.pathname.startsWith('/images/')) {
+    const name = photoName(url.pathname, '/images/');
+    if (!name) return json({error: 'bad name'}, 400, cors);
+    const obj = await env.PHOTOS.get(name);
+    if (!obj) return json({error: 'not found'}, 404, cors);
+    return new Response(obj.body, {
+      headers: {
+        'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg',
+        etag: obj.httpEtag,
+        'cache-control': 'public, max-age=86400',
+        'access-control-allow-origin': '*'
+      }
+    });
+  }
+
+  // --- admin ---
+
+  const user = await requireAuth(request, env);
+  if (!user) return json({error: 'unauthorized'}, 401, cors);
+
+  if (method === 'GET' && url.pathname === '/api/photos') {
+    const manifest = await loadManifest(env);
+    return json({photos: photoList(manifest), user: user.email}, 200, cors);
+  }
+
+  if (method === 'POST' && url.pathname === '/api/sync') {
+    const manifest = await loadManifest(env);
+    let added = 0;
+    let cursor;
+    do {
+      const page = await env.PHOTOS.list({cursor, limit: 1000});
+      for (const obj of page.objects) {
+        const key = obj.key;
+        if (key.includes('/') || key.startsWith('_')) continue;
+        if (!IMAGE_EXTENSIONS.test(key)) continue;
+        if (!manifest.photos[key]) {
+          manifest.photos[key] = {published: false, uploadedAt: Date.now()};
+          added++;
+        }
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+    if (added) await saveManifest(env, manifest);
+    return json({added, total: Object.keys(manifest.photos).length}, 200, cors);
+  }
+
+  if (url.pathname.startsWith('/api/photos/')) {
+    const name = photoName(url.pathname, '/api/photos/');
+    if (!name) return json({error: 'bad name'}, 400, cors);
+    const manifest = await loadManifest(env);
+
+    if (method === 'PUT') {
+      const contentType = request.headers.get('content-type') ?? '';
+      if (!contentType.startsWith('image/')) {
+        return json({error: 'body must be an image'}, 400, cors);
+      }
+      let meta = {};
+      try {
+        meta = JSON.parse(request.headers.get('x-photo-meta') ?? '{}');
+      } catch {
+        return json({error: 'bad x-photo-meta'}, 400, cors);
+      }
+      await env.PHOTOS.put(name, request.body, {
+        httpMetadata: {contentType}
+      });
+      manifest.photos[name] = {
+        ...manifest.photos[name],
+        color: meta.color ?? manifest.photos[name]?.color ?? null,
+        palette: meta.palette ?? manifest.photos[name]?.palette ?? null,
+        width: meta.width ?? null,
+        height: meta.height ?? null,
+        published: manifest.photos[name]?.published ?? false,
+        uploadedAt: Date.now()
+      };
+      await saveManifest(env, manifest);
+      return json({photo: {name, ...manifest.photos[name]}}, 200, cors);
+    }
+
+    if (method === 'PATCH') {
+      const entry = manifest.photos[name];
+      if (!entry) return json({error: 'not found'}, 404, cors);
+      const patch = await request.json();
+      if (typeof patch.published === 'boolean') entry.published = patch.published;
+      if (Array.isArray(patch.color)) entry.color = patch.color;
+      if (Array.isArray(patch.palette)) entry.palette = patch.palette;
+      await saveManifest(env, manifest);
+      return json({photo: {name, ...entry}}, 200, cors);
+    }
+
+    if (method === 'DELETE') {
+      await env.PHOTOS.delete(name);
+      delete manifest.photos[name];
+      await saveManifest(env, manifest);
+      return json({deleted: name}, 200, cors);
+    }
+  }
+
+  return json({error: 'not found'}, 404, cors);
+}
+
+export default {
+  async fetch(request, env) {
+    try {
+      return await handle(request, env);
+    } catch (err) {
+      return json({error: String(err)}, 500, corsHeaders(request, env));
+    }
+  }
+};

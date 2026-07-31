@@ -1,0 +1,277 @@
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: #101014;
+  color: #e8e8ee;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.admin {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.admin.drag-over {
+  outline: 3px dashed #5972c6;
+  outline-offset: -12px;
+  border-radius: 16px;
+}
+
+.admin.gate {
+  max-width: 480px;
+  text-align: center;
+  padding-top: 18vh;
+}
+
+.admin.gate .setup {
+  text-align: left;
+}
+
+.admin.gate code {
+  background: #1d1d26;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.admin-header .sub {
+  margin: 4px 0 0;
+  color: #9a9aad;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.who {
+  color: #9a9aad;
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 20px 0 4px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+.sel-count {
+  color: #9a9aad;
+  font-size: 14px;
+}
+
+button {
+  background: #23232e;
+  color: #e8e8ee;
+  border: 1px solid #34344a;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover {
+  background: #2d2d3c;
+  border-color: #4a4a68;
+}
+
+button.primary {
+  background: #4257a8;
+  border-color: #5972c6;
+}
+
+button.primary:hover {
+  background: #4f66c0;
+}
+
+button.danger:hover {
+  background: #7a2733;
+  border-color: #a83a4a;
+}
+
+.status {
+  color: #86b3f7;
+  font-size: 14px;
+}
+
+.error {
+  color: #f78686;
+  font-size: 14px;
+}
+
+.uploads {
+  list-style: none;
+  padding: 10px 14px;
+  margin: 8px 0;
+  background: #1a1a22;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.uploads li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.drop-hint {
+  color: #6c6c80;
+  font-size: 13px;
+  margin: 6px 0 18px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.empty {
+  color: #9a9aad;
+  grid-column: 1 / -1;
+}
+
+.card {
+  background: #1a1a22;
+  border: 1px solid #26263a;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: #3a3a58;
+}
+
+.card.selected {
+  border-color: #5972c6;
+}
+
+.card.draft .thumb img {
+  opacity: 0.55;
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 3 / 2;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb .select {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 18px;
+  height: 18px;
+  accent-color: #5972c6;
+  cursor: pointer;
+}
+
+.badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.badge.live {
+  background: rgba(46, 125, 50, 0.85);
+  color: #eaffea;
+}
+
+.badge.draft {
+  background: rgba(80, 80, 95, 0.85);
+  color: #d8d8e2;
+}
+
+.card-body {
+  padding: 12px;
+}
+
+.name {
+  margin: 0 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #c9c9d8;
+}
+
+.palette {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.swatch {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  min-width: 8px;
+  cursor: pointer;
+}
+
+.swatch.active {
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.no-color {
+  color: #b3924a;
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.card-actions button {
+  padding: 6px 10px;
+  font-size: 13px;
+}

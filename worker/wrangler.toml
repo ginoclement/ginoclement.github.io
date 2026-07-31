@@ -1,0 +1,16 @@
+name = "gino-photos"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "gino-photos"
+
+[vars]
+# OAuth client ID of the Google "Web application" credential used by the
+# admin page. Must match VITE_GOOGLE_CLIENT_ID on the site build.
+GOOGLE_CLIENT_ID = ""
+# Comma-separated list of Google account emails allowed to manage photos.
+ALLOWED_EMAILS = "ginoclement@gmail.com"
+# Comma-separated list of origins allowed to call the API.
+ALLOWED_ORIGINS = "https://ginoclement.github.io,http://localhost:5173,http://localhost:4173"
