@@ -53,26 +53,26 @@ function colorToPosition(color) {
 }
 
 export default function App() {
-  const [images, setImages] = useState(bundledImages.data);
+  // With an API configured, the published gallery is the source of truth
+  // (null = still loading); the bundled snapshot is only a fallback for when
+  // the API can't be reached, or for API-less builds.
+  const [images, setImages] = useState(API_BASE_URL ? null : bundledImages.data);
   const [selected, setSelected] = useState(null);
   const [showProjects, setShowProjects] = useState(false);
 
-  // Prefer the live gallery from the API; fall back to the bundled snapshot.
   useEffect(() => {
     if (!API_BASE_URL) return;
     fetch(`${API_BASE_URL}/api/gallery`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
-      .then((json) => {
-        if (json.data?.length) setImages(json.data);
-      })
-      .catch(() => {});
+      .then((json) => setImages(json.data ?? []))
+      .catch(() => setImages(bundledImages.data));
   }, []);
 
   const layers = useMemo(
     () => [
       new PointCloudLayer({
         id: 'picture-point-layer',
-        data: images,
+        data: images ?? [],
         pickable: true,
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
         radiusPixels: isMobile ? 8 : 6,
@@ -101,6 +101,9 @@ export default function App() {
         </nav>
       </header>
       <Projects open={showProjects} onClose={() => setShowProjects(false)} />
+      {images?.length === 0 && (
+        <p className="status-msg">No photos published yet — check back soon.</p>
+      )}
       <ImageBox image={selected} onClose={() => setSelected(null)} />
       <div className="deck">
         <DeckGL

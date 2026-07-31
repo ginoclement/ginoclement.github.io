@@ -49,6 +49,16 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
+.status-msg {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  color: #888;
+  font-size: 15px;
+}
+
 /* ---- lightbox ---- */
 
 .lightbox {
