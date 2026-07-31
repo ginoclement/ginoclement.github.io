@@ -375,6 +375,22 @@ export default function Admin() {
       ? photos
       : photos?.filter((p) => folderOf(p.name) === folderFilter);
 
+  const allSelected =
+    Boolean(visiblePhotos?.length) &&
+    visiblePhotos.every((p) => selected.has(p.name));
+
+  const toggleSelectAll = () => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (allSelected) {
+        visiblePhotos.forEach((p) => next.delete(p.name));
+      } else {
+        visiblePhotos.forEach((p) => next.add(p.name));
+      }
+      return next;
+    });
+  };
+
   return (
     <div
       className={`admin${dragOver ? ' drag-over' : ''}`}
@@ -462,6 +478,11 @@ export default function Admin() {
           Export JSON
         </button>
         <button onClick={refresh}>Refresh</button>
+        {Boolean(visiblePhotos?.length) && (
+          <button onClick={toggleSelectAll}>
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </button>
+        )}
         <span className="spacer" />
         {selected.size > 0 && (
           <>
