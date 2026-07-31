@@ -160,7 +160,7 @@ async function handle(request, env) {
     const manifest = await loadManifest(env);
     const data = photoList(manifest)
       .filter((p) => p.published && p.color)
-      .map(({name, color}) => ({name, color}));
+      .map(({name, color, uploadedAt}) => ({name, color, v: uploadedAt}));
     return json({data}, 200, {
       ...cors,
       'access-control-allow-origin': '*',
@@ -171,7 +171,12 @@ async function handle(request, env) {
   if (method === 'GET' && url.pathname.startsWith('/images/')) {
     const name = photoName(url.pathname, '/images/');
     if (!name) return json({error: 'bad name'}, 400, cors);
-    const obj = await env.PHOTOS.get(name);
+    // ?thumb=1 serves the small variant, falling back to the original.
+    let obj = null;
+    if (url.searchParams.get('thumb')) {
+      obj = await env.PHOTOS.get(`_thumb_${name}`);
+    }
+    if (!obj) obj = await env.PHOTOS.get(name);
     if (!obj) return json({error: 'not found'}, 404, cors);
     return new Response(obj.body, {
       headers: {
@@ -196,6 +201,7 @@ async function handle(request, env) {
   if (method === 'POST' && url.pathname === '/api/sync') {
     const manifest = await loadManifest(env);
     let added = 0;
+    let updated = 0;
     let cursor;
     do {
       const page = await env.PHOTOS.list({cursor, limit: 1000});
@@ -204,14 +210,32 @@ async function handle(request, env) {
         if (key.includes('/') || key.startsWith('_')) continue;
         if (!IMAGE_EXTENSIONS.test(key)) continue;
         if (!manifest.photos[key]) {
-          manifest.photos[key] = {published: false, uploadedAt: Date.now()};
+          manifest.photos[key] = {published: false, uploadedAt: Date.now(), size: obj.size};
           added++;
+        } else if (manifest.photos[key].size !== obj.size) {
+          manifest.photos[key].size = obj.size;
+          updated++;
         }
       }
       cursor = page.truncated ? page.cursor : undefined;
     } while (cursor);
-    if (added) await saveManifest(env, manifest);
-    return json({added, total: Object.keys(manifest.photos).length}, 200, cors);
+    if (added || updated) await saveManifest(env, manifest);
+    return json({added, updated, total: Object.keys(manifest.photos).length}, 200, cors);
+  }
+
+  if (method === 'PUT' && url.pathname.startsWith('/api/photos/') && url.pathname.endsWith('/thumb')) {
+    const name = photoName(url.pathname.slice(0, -'/thumb'.length), '/api/photos/');
+    if (!name) return json({error: 'bad name'}, 400, cors);
+    const contentType = request.headers.get('content-type') ?? '';
+    if (!contentType.startsWith('image/')) {
+      return json({error: 'body must be an image'}, 400, cors);
+    }
+    const manifest = await loadManifest(env);
+    if (!manifest.photos[name]) return json({error: 'not found'}, 404, cors);
+    await env.PHOTOS.put(`_thumb_${name}`, request.body, {httpMetadata: {contentType}});
+    manifest.photos[name].thumb = true;
+    await saveManifest(env, manifest);
+    return json({photo: {name, ...manifest.photos[name]}}, 200, cors);
   }
 
   if (url.pathname.startsWith('/api/photos/')) {
@@ -239,6 +263,8 @@ async function handle(request, env) {
         palette: meta.palette ?? manifest.photos[name]?.palette ?? null,
         width: meta.width ?? null,
         height: meta.height ?? null,
+        size: meta.size ?? null,
+        thumb: manifest.photos[name]?.thumb ?? false,
         published: manifest.photos[name]?.published ?? false,
         uploadedAt: Date.now()
       };
@@ -259,6 +285,7 @@ async function handle(request, env) {
 
     if (method === 'DELETE') {
       await env.PHOTOS.delete(name);
+      await env.PHOTOS.delete(`_thumb_${name}`);
       delete manifest.photos[name];
       await saveManifest(env, manifest);
       return json({deleted: name}, 200, cors);

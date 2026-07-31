@@ -15,6 +15,10 @@ const IMAGE_BASE_URL = (
   (API_BASE_URL ? `${API_BASE_URL}/images` : '/images')
 ).replace(/\/+$/, '');
 
-export function imageUrl(name) {
-  return `${IMAGE_BASE_URL}/${encodeURIComponent(name)}`;
+export function imageUrl(name, {thumb = false, v} = {}) {
+  const params = new URLSearchParams();
+  if (thumb) params.set('thumb', '1');
+  if (v) params.set('v', String(v));
+  const query = params.toString();
+  return `${IMAGE_BASE_URL}/${encodeURIComponent(name)}${query ? `?${query}` : ''}`;
 }

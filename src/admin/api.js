@@ -28,6 +28,11 @@ export const api = {
         'x-photo-meta': JSON.stringify(meta)
       }
     }),
+  uploadThumb: (token, name, blob) =>
+    request(token, 'PUT', `/api/photos/${encodeURIComponent(name)}/thumb`, {
+      body: blob,
+      headers: {'content-type': blob.type || 'image/jpeg'}
+    }),
   update: (token, name, patch) =>
     request(token, 'PATCH', `/api/photos/${encodeURIComponent(name)}`, {
       body: JSON.stringify(patch),

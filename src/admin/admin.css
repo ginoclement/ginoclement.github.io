@@ -89,6 +89,24 @@ body {
   font-size: 14px;
 }
 
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #9a9aad;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  accent-color: #5972c6;
+}
+
+.name .size {
+  color: #77778c;
+}
+
 button {
   background: #23232e;
   color: #e8e8ee;

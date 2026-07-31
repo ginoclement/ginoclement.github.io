@@ -5,7 +5,7 @@ export default function ImageBox({image, onClose}) {
   return (
     <div className="lightbox" onClick={onClose}>
       <div className="centered">
-        <img src={imageUrl(image.name)} alt={image.name} />
+        <img src={imageUrl(image.name, {v: image.v})} alt={image.name} />
       </div>
     </div>
   );
