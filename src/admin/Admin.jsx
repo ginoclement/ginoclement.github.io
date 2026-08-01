@@ -3,6 +3,7 @@ import {API_BASE_URL, GOOGLE_CLIENT_ID, imageUrl} from '../config.js';
 import {api} from './api.js';
 import {computePalette} from './kmeans.js';
 import {compressImage, makeThumbnail, formatBytes} from './imageTools.js';
+import {parseExif} from './exif.js';
 
 // Bulk compression targets photos above this size when nothing is selected.
 const COMPRESS_THRESHOLD = 1024 * 1024;
@@ -240,6 +241,8 @@ export default function Admin() {
         const targetName = folder ? `${folder}/${file.name}` : file.name;
         setUploads((u) => [...u, {name: file.name, state: 'processing'}]);
         try {
+          // EXIF must come from the original bytes — compression strips it.
+          const exif = await parseExif(file);
           let body = file;
           let dims = null;
           if (compressUploads) {
@@ -253,6 +256,8 @@ export default function Admin() {
           const meta = {
             color: palette.color,
             palette: palette.palette,
+            features: palette.features,
+            exif,
             width: dims?.width ?? palette.width,
             height: dims?.height ?? palette.height,
             size: body.size
@@ -293,17 +298,23 @@ export default function Admin() {
       let done = 0;
       for (const p of targets) {
         setStatus(`Compressing ${p.name} (${++done}/${targets.length})…`);
-        const c = await compressImage(imageUrl(p.name, {v: p.uploadedAt}));
+        const original = await (await fetch(imageUrl(p.name, {v: p.uploadedAt}))).blob();
+        // Harvest EXIF before recompression discards it from the stored file.
+        const exif = (await parseExif(original)) ?? p.exif ?? null;
+        const c = await compressImage(original);
         if (c.compressed) {
           const before = p.size ?? c.blob.size;
           savedBytes += Math.max(0, before - c.blob.size);
           await api.upload(token, p.name, c.blob, {
             color: p.color,
             palette: p.palette,
+            exif,
             width: c.width,
             height: c.height,
             size: c.blob.size
           });
+        } else if (exif && !p.exif) {
+          await api.update(token, p.name, {exif});
         }
         const thumb = await makeThumbnail(c.blob);
         const {photo} = await api.uploadThumb(token, p.name, thumb);
@@ -319,15 +330,25 @@ export default function Admin() {
       setPhotos((p) => p.map((x) => (x.name === name ? photo : x)));
     });
 
+  const analyzeOne = useCallback(
+    async (p) => {
+      const blob = await (await fetch(imageUrl(p.name, {v: p.uploadedAt}))).blob();
+      const meta = await computePalette(blob);
+      const exif = (await parseExif(blob)) ?? p.exif ?? undefined;
+      const {photo} = await api.update(token, p.name, {
+        color: meta.color,
+        palette: meta.palette,
+        features: meta.features,
+        ...(exif ? {exif} : {})
+      });
+      setPhotos((list) => list.map((x) => (x.name === p.name ? photo : x)));
+    },
+    [token]
+  );
+
   const recompute = (name) =>
     run(`Analyzing ${name}…`, async () => {
-      const entry = photos.find((p) => p.name === name);
-      const meta = await computePalette(imageUrl(name, {v: entry?.uploadedAt}));
-      const {photo} = await api.update(token, name, {
-        color: meta.color,
-        palette: meta.palette
-      });
-      setPhotos((p) => p.map((x) => (x.name === name ? photo : x)));
+      await analyzeOne(photos.find((p) => p.name === name));
     });
 
   const removePhoto = (name) => {
@@ -384,15 +405,25 @@ export default function Admin() {
   const analyzeMissing = () =>
     run('Analyzing photos without colors…', async () => {
       const missing = photos.filter((p) => !p.color);
+      let done = 0;
       for (const p of missing) {
-        setStatus(`Analyzing ${p.name}…`);
-        const meta = await computePalette(imageUrl(p.name, {v: p.uploadedAt}));
-        const {photo} = await api.update(token, p.name, {
-          color: meta.color,
-          palette: meta.palette
-        });
-        setPhotos((list) => list.map((x) => (x.name === p.name ? photo : x)));
+        setStatus(`Analyzing ${p.name} (${++done}/${missing.length})…`);
+        await analyzeOne(p);
       }
+    });
+
+  const analyzeAll = () =>
+    run('Analyzing all photos…', async () => {
+      const targets = selected.size
+        ? photos.filter((p) => selected.has(p.name))
+        : photos;
+      let done = 0;
+      for (const p of targets) {
+        setStatus(`Analyzing ${p.name} (${++done}/${targets.length})…`);
+        await analyzeOne(p);
+      }
+      setSelected(new Set());
+      return `Analyzed ${targets.length} photo(s) — colors, features, and EXIF refreshed.`;
     });
 
   const exportJson = () => {
@@ -560,6 +591,12 @@ export default function Admin() {
         {missingColor > 0 && (
           <button onClick={analyzeMissing}>Analyze {missingColor} missing</button>
         )}
+        <button
+          onClick={analyzeAll}
+          title="Recompute colors, similarity features, and EXIF for selected photos (or all)"
+        >
+          Analyze {selected.size ? selected.size : 'all'}
+        </button>
         <button onClick={exportJson} title="Download published photos as images.json">
           Export JSON
         </button>

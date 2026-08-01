@@ -181,7 +181,14 @@ async function handle(request, env) {
     const manifest = await loadManifest(env);
     const data = photoList(manifest)
       .filter((p) => p.published && p.color && !p.archived)
-      .map(({name, color, uploadedAt}) => ({name, color, v: uploadedAt}));
+      .map(({name, color, palette, exif, features, uploadedAt}) => ({
+        name,
+        color,
+        palette,
+        exif,
+        features,
+        v: uploadedAt
+      }));
     return json({data}, 200, {
       ...cors,
       'access-control-allow-origin': '*',
@@ -282,6 +289,8 @@ async function handle(request, env) {
         ...manifest.photos[name],
         color: meta.color ?? manifest.photos[name]?.color ?? null,
         palette: meta.palette ?? manifest.photos[name]?.palette ?? null,
+        exif: meta.exif ?? manifest.photos[name]?.exif ?? null,
+        features: meta.features ?? manifest.photos[name]?.features ?? null,
         width: meta.width ?? null,
         height: meta.height ?? null,
         size: meta.size ?? null,
@@ -326,6 +335,8 @@ async function handle(request, env) {
       if (typeof patch.archived === 'boolean') entry.archived = patch.archived;
       if (Array.isArray(patch.color)) entry.color = patch.color;
       if (Array.isArray(patch.palette)) entry.palette = patch.palette;
+      if (Array.isArray(patch.features)) entry.features = patch.features;
+      if (patch.exif && typeof patch.exif === 'object') entry.exif = patch.exif;
       await saveManifest(env, manifest);
       return json({photo: {name: finalName, ...entry}}, 200, cors);
     }

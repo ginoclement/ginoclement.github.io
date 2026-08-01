@@ -41,9 +41,24 @@ export async function computePalette(source, {clusters = 7, maxDim = 120} = {}) 
   return {
     color: palette[0].color,
     palette,
+    features: colorHistogram(pixels),
     width: bitmap.width,
     height: bitmap.height
   };
+}
+
+/**
+ * 4x4x4 RGB histogram (64 dims), normalized and quantized to 0-255.
+ * Used as a similarity feature vector for the PCA layout on the site.
+ */
+function colorHistogram(pixels) {
+  const bins = new Array(64).fill(0);
+  for (const [r, g, b] of pixels) {
+    const idx = (Math.min(3, r >> 6) << 4) | (Math.min(3, g >> 6) << 2) | Math.min(3, b >> 6);
+    bins[idx]++;
+  }
+  const max = Math.max(...bins, 1);
+  return bins.map((v) => Math.round((v / max) * 255));
 }
 
 function distSq(a, b) {
