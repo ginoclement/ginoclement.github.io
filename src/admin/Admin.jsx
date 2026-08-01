@@ -7,6 +7,26 @@ import {compressImage, makeThumbnail, formatBytes} from './imageTools.js';
 // Bulk compression targets photos above this size when nothing is selected.
 const COMPRESS_THRESHOLD = 1024 * 1024;
 
+const STATUS_FILTERS = [
+  {key: 'all', label: 'All', test: (p) => !p.archived},
+  {key: 'published', label: 'Published', test: (p) => p.published && !p.archived},
+  {key: 'draft', label: 'Drafts', test: (p) => !p.published && !p.archived},
+  {key: 'nocolor', label: 'No color', test: (p) => !p.color && !p.archived},
+  {
+    key: 'large',
+    label: 'Large',
+    title: 'Over 1 MB, or size unknown (run Sync bucket)',
+    test: (p) => !p.archived && (p.size == null || p.size > COMPRESS_THRESHOLD)
+  },
+  {key: 'archived', label: 'Archived', test: (p) => Boolean(p.archived)}
+];
+
+const SORTERS = {
+  name: (a, b) => a.name.localeCompare(b.name),
+  size: (a, b) => (b.size ?? -1) - (a.size ?? -1),
+  newest: (a, b) => (b.uploadedAt ?? 0) - (a.uploadedAt ?? 0)
+};
+
 const TOKEN_KEY = 'admin-id-token';
 
 function decodeJwtPayload(token) {
@@ -45,6 +65,63 @@ function cleanFolder(input) {
     .join('/');
 }
 
+/** Full-size preview with metadata and management actions. */
+function PreviewOverlay({photo, onClose, onPublish, onArchive, onDelete, onPickColor}) {
+  const [dims, setDims] = useState(null);
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="preview-overlay" onClick={onClose}>
+      <div className="preview-panel" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={imageUrl(photo.name, {v: photo.uploadedAt})}
+          alt={photo.name}
+          onLoad={(e) => setDims([e.target.naturalWidth, e.target.naturalHeight])}
+        />
+        <div className="preview-info">
+          <p className="name" title={photo.name}>{photo.name}</p>
+          <p className="meta">
+            {dims ? `${dims[0]}×${dims[1]} px (served)` : 'measuring…'}
+            {photo.size != null && ` · ${formatBytes(photo.size)}`}
+            {' · '}
+            {photo.archived ? 'archived' : photo.published ? 'published' : 'draft'}
+          </p>
+          {photo.palette && (
+            <div className="palette" title="Click a swatch to use it as the dominant color">
+              {photo.palette.map((p, i) => (
+                <button
+                  key={i}
+                  className={`swatch${sameColor(p.color, photo.color) ? ' active' : ''}`}
+                  style={{background: rgbCss(p.color), flexGrow: Math.max(p.share, 0.04)}}
+                  onClick={() => onPickColor(p.color)}
+                  title={`${Math.round(p.share * 100)}%`}
+                />
+              ))}
+            </div>
+          )}
+          <div className="preview-actions">
+            <button className="primary" onClick={() => onPublish(!photo.published)}>
+              {photo.published ? 'Unpublish' : 'Publish'}
+            </button>
+            <button onClick={() => onArchive(!photo.archived)}>
+              {photo.archived ? 'Restore' : 'Archive'}
+            </button>
+            <a className="button-link" href={imageUrl(photo.name, {v: photo.uploadedAt})} target="_blank" rel="noreferrer">
+              Open original
+            </a>
+            <button className="danger" onClick={onDelete}>Delete</button>
+            <button onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Defers fetching the image until the card is near the viewport. */
 function LazyImage({src, alt}) {
   const ref = useRef(null);
@@ -81,6 +158,9 @@ export default function Admin() {
   const [compressUploads, setCompressUploads] = useState(true);
   const [uploadFolder, setUploadFolder] = useState('');
   const [folderFilter, setFolderFilter] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [previewName, setPreviewName] = useState(null);
   const signInRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -370,10 +450,14 @@ export default function Admin() {
   const published = photos?.filter((p) => p.published).length ?? 0;
   const missingColor = photos?.filter((p) => !p.color).length ?? 0;
   const folders = [...new Set((photos ?? []).map((p) => folderOf(p.name)))].sort();
-  const visiblePhotos =
+  const inFolder =
     folderFilter === null
       ? photos
       : photos?.filter((p) => folderOf(p.name) === folderFilter);
+  const statusTest = STATUS_FILTERS.find((f) => f.key === statusFilter).test;
+  const visiblePhotos = inFolder?.filter(statusTest).sort(SORTERS[sortBy]);
+  const previewPhoto = previewName && photos?.find((p) => p.name === previewName);
+  const totalSize = photos?.reduce((sum, p) => sum + (p.size ?? 0), 0);
 
   const allSelected =
     Boolean(visiblePhotos?.length) &&
@@ -412,7 +496,9 @@ export default function Admin() {
         <div>
           <h1>Photo Admin</h1>
           <p className="sub">
-            {photos ? `${photos.length} photos · ${published} published` : 'Loading…'}
+            {photos
+              ? `${photos.length} photos · ${published} published · ${formatBytes(totalSize) ?? '0 KB'} stored`
+              : 'Loading…'}
             {missingColor > 0 && ` · ${missingColor} missing colors`}
           </p>
         </div>
@@ -490,8 +576,36 @@ export default function Admin() {
             <button onClick={() => bulk({published: true})}>Publish</button>
             <button onClick={() => bulk({published: false})}>Unpublish</button>
             <button onClick={moveSelected}>Move to folder…</button>
+            {statusFilter === 'archived' ? (
+              <button onClick={() => bulk({archived: false})}>Restore</button>
+            ) : (
+              <button onClick={() => bulk({archived: true, published: false})}>Archive</button>
+            )}
           </>
         )}
+      </div>
+
+      <div className="filter-bar">
+        <div className="folder-chips">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              className={`chip${statusFilter === f.key ? ' active' : ''}`}
+              title={f.title}
+              onClick={() => setStatusFilter(f.key)}
+            >
+              {f.label} ({inFolder?.filter(f.test).length ?? 0})
+            </button>
+          ))}
+        </div>
+        <label className="sort">
+          sort
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="name">name</option>
+            <option value="size">largest first</option>
+            <option value="newest">newest first</option>
+          </select>
+        </label>
       </div>
 
       {folders.length > 1 && (
@@ -544,8 +658,12 @@ export default function Admin() {
             onPickColor={(color) => patchPhoto(photo.name, {color})}
             onRecompute={() => recompute(photo.name)}
             onDelete={() => removePhoto(photo.name)}
+            onPreview={() => setPreviewName(photo.name)}
           />
         ))}
+        {visiblePhotos?.length === 0 && photos?.length > 0 && (
+          <p className="empty">Nothing matches the current filters.</p>
+        )}
         {photos && photos.length === 0 && (
           <p className="empty">
             No photos yet. Upload some, or use “Sync bucket” if you have already
@@ -553,14 +671,34 @@ export default function Admin() {
           </p>
         )}
       </div>
+      {previewPhoto && (
+        <PreviewOverlay
+          photo={previewPhoto}
+          onClose={() => setPreviewName(null)}
+          onPublish={(v) => patchPhoto(previewPhoto.name, {published: v})}
+          onArchive={(v) =>
+            patchPhoto(previewPhoto.name, v ? {archived: true, published: false} : {archived: false})
+          }
+          onPickColor={(color) => patchPhoto(previewPhoto.name, {color})}
+          onDelete={() => {
+            removePhoto(previewPhoto.name);
+            setPreviewName(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompute, onDelete}) {
+function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompute, onDelete, onPreview}) {
   return (
     <div className={`card${selected ? ' selected' : ''}${photo.published ? '' : ' draft'}`}>
-      <div className="thumb" style={{background: photo.color ? rgbCss(photo.color) : '#222'}}>
+      <div
+        className="thumb"
+        style={{background: photo.color ? rgbCss(photo.color) : '#222'}}
+        onClick={onPreview}
+        title="Click to preview"
+      >
         <LazyImage
           src={imageUrl(photo.name, {thumb: true, v: photo.uploadedAt})}
           alt={photo.name}
@@ -570,10 +708,11 @@ function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompu
           className="select"
           checked={selected}
           onChange={onSelect}
+          onClick={(e) => e.stopPropagation()}
           title="Select for bulk actions"
         />
-        <span className={`badge ${photo.published ? 'live' : 'draft'}`}>
-          {photo.published ? 'published' : 'draft'}
+        <span className={`badge ${photo.archived ? 'draft' : photo.published ? 'live' : 'draft'}`}>
+          {photo.archived ? 'archived' : photo.published ? 'published' : 'draft'}
         </span>
       </div>
       <div className="card-body">
@@ -600,6 +739,7 @@ function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompu
           <button className="primary" onClick={() => onPublish(!photo.published)}>
             {photo.published ? 'Unpublish' : 'Publish'}
           </button>
+          <button onClick={onPreview}>Preview</button>
           <button onClick={onRecompute}>Analyze</button>
           <button className="danger" onClick={onDelete}>Delete</button>
         </div>

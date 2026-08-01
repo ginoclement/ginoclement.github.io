@@ -180,7 +180,7 @@ async function handle(request, env) {
   if (method === 'GET' && url.pathname === '/api/gallery') {
     const manifest = await loadManifest(env);
     const data = photoList(manifest)
-      .filter((p) => p.published && p.color)
+      .filter((p) => p.published && p.color && !p.archived)
       .map(({name, color, uploadedAt}) => ({name, color, v: uploadedAt}));
     return json({data}, 200, {
       ...cors,
@@ -323,6 +323,7 @@ async function handle(request, env) {
       }
 
       if (typeof patch.published === 'boolean') entry.published = patch.published;
+      if (typeof patch.archived === 'boolean') entry.archived = patch.archived;
       if (Array.isArray(patch.color)) entry.color = patch.color;
       if (Array.isArray(patch.palette)) entry.palette = patch.palette;
       await saveManifest(env, manifest);
