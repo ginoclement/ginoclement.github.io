@@ -1,7 +1,7 @@
 import {useMemo, useState} from 'react';
 import {imageUrl} from '../config.js';
 import {DayClock, MonthStrip, SeasonHeatmap, ActivityCalendar} from './stats/TimeCharts.jsx';
-import {LensAxis, ApertureIris, ExposureMap, GearTimeline} from './stats/GearCharts.jsx';
+import {LensAxis, ApertureIris, ExposureMap, GearTimeline, FovFan} from './stats/GearCharts.jsx';
 import {HueWheel, MoodMap} from './stats/ColorCharts.jsx';
 
 function StatTile({value, label}) {
@@ -121,6 +121,7 @@ export default function Stats({images, onSelect}) {
             <ApertureIris withExif={stats.withExif} filter={filter} onFilter={toggleFilter} />
           </div>
           <GearTimeline withExif={stats.withExif} filter={filter} onFilter={toggleFilter} />
+          <FovFan withExif={stats.withExif} filter={filter} onFilter={toggleFilter} />
           <LensAxis withExif={stats.withExif} onSelect={onSelect} />
           <ExposureMap withExif={stats.withExif} onSelect={onSelect} />
         </>

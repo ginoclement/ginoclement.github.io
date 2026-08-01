@@ -211,6 +211,98 @@ export function ApertureIris({withExif, filter, onFilter}) {
   );
 }
 
+const FOV_PRIMES = [16, 24, 35, 50, 85, 135, 200];
+
+function nearestPrime(mm) {
+  let best = FOV_PRIMES[0];
+  for (const p of FOV_PRIMES) {
+    if (Math.abs(Math.log(p) - Math.log(mm)) < Math.abs(Math.log(best) - Math.log(mm))) best = p;
+  }
+  return best;
+}
+
+/** Nested wedges showing the actual horizontal angle of view of each focal
+ * length family (full-frame). Wide lenses are short and wide; telephotos
+ * reach far and narrow. Wedges filter. */
+export function FovFan({withExif, filter, onFilter}) {
+  const bins = useMemo(() => {
+    const counts = new Map();
+    for (const p of withExif) {
+      if (!p.exif.focalLength) continue;
+      const prime = nearestPrime(p.exif.focalLength);
+      counts.set(prime, (counts.get(prime) ?? 0) + 1);
+    }
+    return FOV_PRIMES.filter((f) => counts.has(f)).map((f) => ({
+      focal: f,
+      count: counts.get(f),
+      angle: 2 * Math.atan(36 / (2 * f)) // horizontal FOV, radians
+    }));
+  }, [withExif]);
+  if (bins.length < 2) return null;
+
+  const W = 720;
+  const H = 290;
+  const apexX = W / 2;
+  const apexY = H - 24;
+  const maxAngle = Math.max(...bins.map((b) => b.angle));
+  const maxCount = Math.max(...bins.map((b) => b.count));
+  const reach = (angle) => 110 + 145 * (1 - angle / maxAngle);
+
+  return (
+    <figure className="chart chart-wide">
+      <figcaption>
+        <span className="chart-title">Field of view</span>
+        <span className="chart-note">
+          the actual angle each focal length sees (full-frame) — click a wedge to filter
+        </span>
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Angle of view by focal length">
+        {bins.map((b) => {
+          const half = b.angle / 2;
+          const r = reach(b.angle);
+          const x0 = apexX + r * Math.sin(-half);
+          const y0 = apexY - r * Math.cos(-half);
+          const x1 = apexX + r * Math.sin(half);
+          const y1 = apexY - r * Math.cos(half);
+          const selected = filter?.key === `fov:${b.focal}`;
+          const labelR = r + 16;
+          return (
+            <g key={b.focal}>
+              <path
+                d={`M${apexX},${apexY} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} Z`}
+                fill={ACCENT}
+                fillOpacity={0.1 + 0.5 * (b.count / maxCount)}
+                stroke={selected ? '#222' : '#fff'}
+                strokeWidth={selected ? 2 : 1.5}
+                style={{cursor: 'pointer'}}
+                onClick={() =>
+                  onFilter({
+                    key: `fov:${b.focal}`,
+                    label: `shot around ${b.focal}mm (${Math.round((b.angle * 180) / Math.PI)}° view)`,
+                    test: (p) =>
+                      p.exif?.focalLength && nearestPrime(p.exif.focalLength) === b.focal
+                  })
+                }
+              >
+                <title>{`${b.focal}mm — ${Math.round((b.angle * 180) / Math.PI)}° · ${b.count} photos`}</title>
+              </path>
+              <text
+                x={apexX + labelR * Math.sin(half)}
+                y={apexY - labelR * Math.cos(half)}
+                className="axis-label strong"
+                textAnchor={half > 0.4 ? 'start' : 'middle'}
+              >
+                {b.focal}mm · {b.count}
+              </text>
+            </g>
+          );
+        })}
+        <circle cx={apexX} cy={apexY} r={4} fill="#333" />
+      </svg>
+    </figure>
+  );
+}
+
 const SHUTTER_TICKS = [
   {v: 1 / 4000, label: '1/4000'},
   {v: 1 / 1000, label: '1/1000'},

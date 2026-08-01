@@ -3,7 +3,8 @@ import DeckGL from '@deck.gl/react';
 import {PointCloudLayer, LineLayer} from '@deck.gl/layers';
 import {COORDINATE_SYSTEM, OrbitView} from '@deck.gl/core';
 import {rgbToHsl, paletteDistance} from '../lib/color.js';
-import {pcaProject} from '../lib/pca.js';
+import {mdsProject} from '../lib/mds.js';
+import {imageUrl} from '../config.js';
 
 const isMobile = window.matchMedia('(pointer: coarse)').matches;
 
@@ -36,40 +37,50 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
   const [layout, setLayout] = useState('color');
   const [constellation, setConstellation] = useState(false);
 
-  const featured = useMemo(() => images.filter((i) => i.features?.length), [images]);
-  const hasFeatures = featured.length >= 10;
+  // Perceptual palette-similarity embedding (MDS over OKLab palette
+  // distances) — photos that read as related sit near each other.
+  const similarityPositions = useMemo(() => {
+    if (layout !== 'shape' || images.length < 10) return null;
+    const coords = mdsProject(images.length, (i, j) => paletteDistance(images[i], images[j]));
+    return new Map(images.map((img, i) => [img.name, coords[i]]));
+  }, [images, layout]);
 
-  const {data, positions, layoutKey} = useMemo(() => {
+  const {positions, layoutKey, ranked} = useMemo(() => {
     // Similarity morph: the clicked photo at the center, everything else on
-    // a golden-angle spiral, radius proportional to palette distance.
+    // a golden-angle spiral, radius proportional to perceptual distance.
     if (simTarget) {
       const target = images.find((i) => i.name === simTarget.name) ?? simTarget;
       const others = images
         .filter((i) => i.name !== target.name)
-        .map((i) => ({i, d: paletteDistance(target, i)}))
+        .map((i) => ({img: i, d: paletteDistance(target, i)}))
         .sort((a, b) => a.d - b.d);
-      const dmax = Math.max(...others.map((o) => o.d), 1);
+      const dmax = Math.max(...others.map((o) => o.d), 1e-6);
       const pos = new Map([[target.name, [0, 0, 0]]]);
       others.forEach((o, rank) => {
         const r = 70 + 380 * (o.d / dmax);
         const angle = rank * GOLDEN_ANGLE;
-        pos.set(o.i.name, [r * Math.cos(angle), r * Math.sin(angle), 0]);
+        pos.set(o.img.name, [r * Math.cos(angle), r * Math.sin(angle), 0]);
       });
-      return {data: images, positions: pos, layoutKey: `sim:${target.name}`};
+      return {
+        positions: pos,
+        layoutKey: `sim:${target.name}`,
+        ranked: others.map((o) => ({...o, sim: 1 - o.d / dmax}))
+      };
     }
-    if (layout === 'shape' && hasFeatures) {
-      const projected = pcaProject(featured.map((i) => i.features));
-      const pos = new Map(featured.map((i, idx) => [i.name, projected[idx]]));
-      return {data: featured, positions: pos, layoutKey: 'shape'};
+    if (similarityPositions) {
+      return {positions: similarityPositions, layoutKey: 'shape', ranked: null};
     }
-    const pos = new Map(images.map((i) => [i.name, colorToPosition(i.color)]));
-    return {data: images, positions: pos, layoutKey: 'color'};
-  }, [images, layout, simTarget, featured, hasFeatures]);
+    return {
+      positions: new Map(images.map((i) => [i.name, colorToPosition(i.color)])),
+      layoutKey: 'color',
+      ranked: null
+    };
+  }, [images, simTarget, similarityPositions]);
 
   // Constellation: connect each photo to its 2 nearest neighbors.
   const edges = useMemo(() => {
     if (!constellation) return [];
-    const points = data.map((i) => positions.get(i.name));
+    const points = images.map((i) => positions.get(i.name)).filter(Boolean);
     const result = [];
     for (let a = 0; a < points.length; a++) {
       const nearest = points
@@ -81,7 +92,7 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
       }
     }
     return result;
-  }, [constellation, data, positions]);
+  }, [constellation, images, positions]);
 
   const layers = useMemo(() => {
     const list = [];
@@ -101,11 +112,11 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
     list.push(
       new PointCloudLayer({
         id: 'photos',
-        data,
+        data: images,
         pickable: true,
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
         radiusPixels: isMobile ? 8 : 6,
-        getPosition: (d) => positions.get(d.name),
+        getPosition: (d) => positions.get(d.name) ?? [0, 0, 0],
         getColor: (d) => d.color,
         onClick: ({object}) => onSelect(object),
         updateTriggers: {getPosition: layoutKey},
@@ -113,7 +124,7 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
       })
     );
     return list;
-  }, [data, positions, edges, layoutKey, onSelect]);
+  }, [images, positions, edges, layoutKey, onSelect]);
 
   return (
     <div>
@@ -124,12 +135,12 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
             <button onClick={onClearSim}>back to space</button>
           </span>
         ) : (
-          hasFeatures && (
+          images.length >= 10 && (
             <label>
               layout
               <select value={layout} onChange={(e) => setLayout(e.target.value)}>
                 <option value="color">color space</option>
-                <option value="shape">visual similarity</option>
+                <option value="shape">palette similarity</option>
               </select>
             </label>
           )
@@ -143,6 +154,19 @@ export default function ColorSpace({images, onSelect, simTarget, onClearSim}) {
           constellation
         </label>
       </div>
+      {ranked && (
+        <div className="similar-strip">
+          <p>closest matches by palette — click to open</p>
+          <div className="similar-thumbs">
+            {ranked.slice(0, 16).map(({img, sim}) => (
+              <button key={img.name} title={img.name} onClick={() => onSelect(img)}>
+                <img src={imageUrl(img.name, {thumb: true, v: img.v})} alt={img.name} loading="lazy" />
+                <span>{Math.round(sim * 100)}%</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="deck">
         <DeckGL
           views={new OrbitView()}
