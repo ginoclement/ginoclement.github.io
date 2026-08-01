@@ -4,6 +4,7 @@ import {api} from './api.js';
 import {computePalette} from './kmeans.js';
 import {compressImage, makeThumbnail, formatBytes} from './imageTools.js';
 import {parseExif} from './exif.js';
+import {computeHash, isDuplicatePair, groupDuplicates} from './phash.js';
 
 // Bulk compression targets photos above this size when nothing is selected.
 const COMPRESS_THRESHOLD = 1024 * 1024;
@@ -162,6 +163,8 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [previewName, setPreviewName] = useState(null);
+  const [dupGroups, setDupGroups] = useState(null);
+  const [notices, setNotices] = useState([]);
   const signInRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -253,11 +256,23 @@ export default function Admin() {
             }
           }
           const palette = await computePalette(body);
+          const hash = await computeHash(body);
+          const candidate = {hash, color: palette.color, palette: palette.palette};
+          const lookalike = (photos ?? []).find(
+            (p) => p.name !== targetName && p.hash && isDuplicatePair(p, candidate)
+          );
+          if (lookalike) {
+            setNotices((n) => [
+              ...n,
+              `${file.name} looks like a duplicate of ${lookalike.name}`
+            ]);
+          }
           const meta = {
             color: palette.color,
             palette: palette.palette,
             features: palette.features,
             exif,
+            hash,
             width: dims?.width ?? palette.width,
             height: dims?.height ?? palette.height,
             size: body.size
@@ -334,17 +349,38 @@ export default function Admin() {
     async (p) => {
       const blob = await (await fetch(imageUrl(p.name, {v: p.uploadedAt}))).blob();
       const meta = await computePalette(blob);
+      const hash = await computeHash(blob);
       const exif = (await parseExif(blob)) ?? p.exif ?? undefined;
       const {photo} = await api.update(token, p.name, {
         color: meta.color,
         palette: meta.palette,
         features: meta.features,
+        hash,
         ...(exif ? {exif} : {})
       });
       setPhotos((list) => list.map((x) => (x.name === p.name ? photo : x)));
     },
     [token]
   );
+
+  const findDuplicates = () =>
+    run('Scanning for duplicates…', async () => {
+      const list = photos.map((p) => ({...p}));
+      let hashed = 0;
+      for (const p of list) {
+        if (p.hash) continue;
+        setStatus(`Hashing ${p.name} (${++hashed})…`);
+        const hash = await computeHash(imageUrl(p.name, {thumb: true, v: p.uploadedAt}));
+        const {photo} = await api.update(token, p.name, {hash});
+        setPhotos((prev) => prev.map((x) => (x.name === p.name ? photo : x)));
+        p.hash = hash;
+      }
+      const groups = groupDuplicates(list);
+      setDupGroups(groups);
+      return groups.length
+        ? `Found ${groups.length} group(s) of lookalikes.`
+        : 'No duplicates found — every photo is unique.';
+    });
 
   const recompute = (name) =>
     run(`Analyzing ${name}…`, async () => {
@@ -597,6 +633,12 @@ export default function Admin() {
         >
           Analyze {selected.size ? selected.size : 'all'}
         </button>
+        <button
+          onClick={findDuplicates}
+          title="Perceptually hash every photo and group lookalikes, even with different filenames"
+        >
+          Find duplicates
+        </button>
         <button onClick={exportJson} title="Download published photos as images.json">
           Export JSON
         </button>
@@ -667,6 +709,14 @@ export default function Admin() {
 
       {status && <p className="status">{status}</p>}
       {error && <p className="error">{error}</p>}
+      {notices.map((notice, i) => (
+        <p key={i} className="notice">
+          ⚠ {notice}
+          <button onClick={() => setNotices((n) => n.filter((_, j) => j !== i))}>
+            dismiss
+          </button>
+        </p>
+      ))}
       {uploads.length > 0 && (
         <ul className="uploads">
           {uploads.map((u) => (
@@ -683,6 +733,46 @@ export default function Admin() {
       )}
 
       <p className="drop-hint">…or drag &amp; drop images anywhere on this page.</p>
+
+      {dupGroups && (
+        <div className="dup-panel">
+          <div className="match-head">
+            <span>
+              <strong>{dupGroups.filter((g) => g.map((n) => photos.find((p) => p.name === n)).filter(Boolean).length > 1).length}</strong>{' '}
+              group(s) of possible duplicates — review and delete the extras
+            </span>
+            <button onClick={() => setDupGroups(null)}>close ×</button>
+          </div>
+          {dupGroups.map((group, gi) => {
+            const members = group
+              .map((name) => photos.find((p) => p.name === name))
+              .filter(Boolean);
+            if (members.length < 2) return null;
+            return (
+              <div key={gi} className="dup-group">
+                {members.map((p) => (
+                  <div key={p.name} className="dup-item">
+                    <img
+                      src={imageUrl(p.name, {thumb: true, v: p.uploadedAt})}
+                      alt={p.name}
+                      onClick={() => setPreviewName(p.name)}
+                    />
+                    <p className="name" title={p.name}>{baseOf(p.name)}</p>
+                    <p className="dup-meta">
+                      {formatBytes(p.size) ?? '?'}
+                      {p.width ? ` · ${p.width}px` : ''}
+                      {p.published ? ' · published' : ''}
+                    </p>
+                    <button className="danger" onClick={() => removePhoto(p.name)}>
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid">
         {visiblePhotos?.map((photo) => (

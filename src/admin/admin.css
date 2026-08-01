@@ -290,6 +290,74 @@ button.danger:hover {
   padding: 2px 0;
 }
 
+.notice {
+  color: #e8c675;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notice button {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.dup-panel {
+  background: #1a1a22;
+  border: 1px solid #4a4030;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+
+.dup-panel .match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: #c9c9d8;
+}
+
+.dup-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid #26263a;
+  margin-top: 12px;
+}
+
+.dup-item {
+  width: 150px;
+}
+
+.dup-item img {
+  width: 150px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: zoom-in;
+  display: block;
+}
+
+.dup-item .name {
+  margin: 6px 0 2px;
+  font-size: 12px;
+}
+
+.dup-meta {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: #9a9aad;
+}
+
+.dup-item button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .drop-hint {
   color: #6c6c80;
   font-size: 13px;

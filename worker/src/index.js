@@ -291,6 +291,7 @@ async function handle(request, env) {
         palette: meta.palette ?? manifest.photos[name]?.palette ?? null,
         exif: meta.exif ?? manifest.photos[name]?.exif ?? null,
         features: meta.features ?? manifest.photos[name]?.features ?? null,
+        hash: meta.hash ?? manifest.photos[name]?.hash ?? null,
         width: meta.width ?? null,
         height: meta.height ?? null,
         size: meta.size ?? null,
@@ -337,6 +338,7 @@ async function handle(request, env) {
       if (Array.isArray(patch.palette)) entry.palette = patch.palette;
       if (Array.isArray(patch.features)) entry.features = patch.features;
       if (patch.exif && typeof patch.exif === 'object') entry.exif = patch.exif;
+      if (typeof patch.hash === 'string') entry.hash = patch.hash;
       await saveManifest(env, manifest);
       return json({photo: {name: finalName, ...entry}}, 200, cors);
     }
