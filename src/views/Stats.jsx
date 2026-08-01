@@ -1,95 +1,371 @@
 import {useMemo, useState} from 'react';
+import {rgbCss} from '../lib/color.js';
 
-// Chart color validated for the light surface (dataviz six-checks).
-const BAR_COLOR = '#4257A8';
+// Accent validated for the light surface; sequential use varies only opacity.
+const ACCENT = '#4257A8';
+const ACCENT_RGB = [66, 87, 168];
 
-/**
- * Single-series histogram: thin bars, 4px rounded tops anchored to the
- * baseline, 2px gaps, recessive grid, hover tooltip. Text wears ink, not
- * the series color.
- */
-function Histogram({title, bins, note}) {
+function averageColor(photos) {
+  if (!photos.length) return null;
+  const sum = [0, 0, 0];
+  for (const p of photos) {
+    sum[0] += p.color[0];
+    sum[1] += p.color[1];
+    sum[2] += p.color[2];
+  }
+  return sum.map((v) => Math.round(v / photos.length));
+}
+
+function polar(cx, cy, r, angle) {
+  return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+}
+
+/** 24-hour radial clock; spoke length = count, spoke color = the average
+ * dominant color of photos taken that hour. */
+function DayClock({dated}) {
   const [hover, setHover] = useState(null);
-  const W = 560;
-  const H = 200;
-  const PAD = {top: 26, right: 8, bottom: 26, left: 8};
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
-  const max = Math.max(...bins.map((b) => b.count), 1);
-  const step = plotW / bins.length;
-  const barW = Math.max(2, step - 2);
-  const radius = Math.min(4, barW / 2);
+  const bins = useMemo(() => {
+    const groups = Array.from({length: 24}, () => []);
+    for (const p of dated) groups[new Date(p.exif.takenAt).getHours()].push(p);
+    return groups.map((g, hour) => ({hour, count: g.length, color: averageColor(g)}));
+  }, [dated]);
 
-  const labelEvery = Math.ceil(bins.length / 12);
+  const SIZE = 360;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const R0 = 46;
+  const R1 = 150;
+  const max = Math.max(...bins.map((b) => b.count), 1);
+  const gap = 0.012; // radians — the 2px spacer, angularly
+
+  const wedge = (hour, rOuter) => {
+    const a0 = ((hour / 24) * 2 - 0.5) * Math.PI + gap;
+    const a1 = (((hour + 1) / 24) * 2 - 0.5) * Math.PI - gap;
+    const [x0, y0] = polar(cx, cy, R0, a0);
+    const [x1, y1] = polar(cx, cy, rOuter, a0);
+    const [x2, y2] = polar(cx, cy, rOuter, a1);
+    const [x3, y3] = polar(cx, cy, R0, a1);
+    return `M${x0},${y0} L${x1},${y1} A${rOuter},${rOuter} 0 0 1 ${x2},${y2} L${x3},${y3} A${R0},${R0} 0 0 0 ${x0},${y0} Z`;
+  };
+
+  const goldenBand = (h0, h1) => {
+    const a0 = ((h0 / 24) * 2 - 0.5) * Math.PI;
+    const a1 = ((h1 / 24) * 2 - 0.5) * Math.PI;
+    const [x0, y0] = polar(cx, cy, R0, a0);
+    const [x1, y1] = polar(cx, cy, R1 + 6, a0);
+    const [x2, y2] = polar(cx, cy, R1 + 6, a1);
+    const [x3, y3] = polar(cx, cy, R0, a1);
+    return `M${x0},${y0} L${x1},${y1} A${R1 + 6},${R1 + 6} 0 0 1 ${x2},${y2} L${x3},${y3} A${R0},${R0} 0 0 0 ${x0},${y0} Z`;
+  };
+
+  const hovered = hover !== null ? bins[hover] : null;
 
   return (
     <figure className="chart">
       <figcaption>
-        <span className="chart-title">{title}</span>
-        {note && <span className="chart-note">{note}</span>}
+        <span className="chart-title">Day clock</span>
+        <span className="chart-note">
+          when the shutter fires, tinted the average color of that hour's photos
+        </span>
       </figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
-        {[0.5, 1].map((f) => (
-          <line
-            key={f}
-            x1={PAD.left}
-            x2={W - PAD.right}
-            y1={PAD.top + plotH * (1 - f)}
-            y2={PAD.top + plotH * (1 - f)}
-            stroke="#ececf1"
-          />
-        ))}
-        <text x={PAD.left} y={PAD.top - 8} className="axis-label">
-          {max}
-        </text>
-        {bins.map((bin, i) => {
-          const h = (bin.count / max) * plotH;
-          const x = PAD.left + i * step + (step - barW) / 2;
-          const y = PAD.top + plotH - h;
-          const r = Math.min(radius, h);
-          const path = h
-            ? `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + barW - r},${y} Q${x + barW},${y} ${x + barW},${y + r} L${x + barW},${y + h} Z`
-            : null;
-          return (
-            <g
-              key={bin.label}
-              onMouseEnter={() => setHover(i)}
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Photos by hour of day">
+        <path d={goldenBand(6, 9)} fill="#f3ecdc" />
+        <path d={goldenBand(17, 20)} fill="#f3ecdc" />
+        <circle cx={cx} cy={cy} r={R0 - 4} fill="none" stroke="#ececf1" />
+        {bins.map((b) =>
+          b.count === 0 ? null : (
+            <path
+              key={b.hour}
+              d={wedge(b.hour, R0 + (b.count / max) * (R1 - R0))}
+              fill={b.color ? rgbCss(b.color) : ACCENT}
+              stroke="#fff"
+              strokeWidth="1"
+              opacity={hover === null || hover === b.hour ? 1 : 0.35}
+              onMouseEnter={() => setHover(b.hour)}
               onMouseLeave={() => setHover(null)}
-            >
-              <rect
-                x={PAD.left + i * step}
-                y={PAD.top}
-                width={step}
-                height={plotH}
-                fill="transparent"
-              />
-              {path && <path d={path} fill={BAR_COLOR} opacity={hover === null || hover === i ? 1 : 0.45} />}
-              {hover === i && (
-                <text x={x + barW / 2} y={y - 5} textAnchor="middle" className="value-label">
-                  {bin.count}
-                </text>
-              )}
-              {(i % labelEvery === 0 || hover === i) && (
-                <text
-                  x={PAD.left + i * step + step / 2}
-                  y={H - 8}
-                  textAnchor="middle"
-                  className={`axis-label${hover === i ? ' strong' : ''}`}
-                >
-                  {bin.label}
-                </text>
-              )}
-            </g>
+            />
+          )
+        )}
+        {[0, 6, 12, 18].map((h) => {
+          const [x, y] = polar(cx, cy, R1 + 22, ((h / 24) * 2 - 0.5) * Math.PI);
+          return (
+            <text key={h} x={x} y={y + 3} textAnchor="middle" className="axis-label">
+              {h}:00
+            </text>
           );
         })}
-        <line
-          x1={PAD.left}
-          x2={W - PAD.right}
-          y1={PAD.top + plotH}
-          y2={PAD.top + plotH}
-          stroke="#d8d8e0"
-        />
+        <text x={cx} y={cy - 4} textAnchor="middle" className="clock-center">
+          {hovered ? `${hovered.hour}:00` : dated.length}
+        </text>
+        <text x={cx} y={cy + 14} textAnchor="middle" className="axis-label">
+          {hovered
+            ? `${hovered.count} photo${hovered.count === 1 ? '' : 's'}`
+            : 'photos'}
+        </text>
       </svg>
+    </figure>
+  );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Twelve cells, each the mean dominant color of that month's photos. */
+function MonthStrip({dated}) {
+  const bins = useMemo(() => {
+    const groups = Array.from({length: 12}, () => []);
+    for (const p of dated) groups[new Date(p.exif.takenAt).getMonth()].push(p);
+    return groups.map((g, m) => ({month: m, count: g.length, color: averageColor(g)}));
+  }, [dated]);
+  return (
+    <figure className="chart">
+      <figcaption>
+        <span className="chart-title">The color of your seasons</span>
+        <span className="chart-note">mean dominant color per month</span>
+      </figcaption>
+      <div className="month-strip">
+        {bins.map((b) => (
+          <div key={b.month} className="month-cell" title={`${MONTHS[b.month]}: ${b.count} photos`}>
+            <div
+              className="month-swatch"
+              style={b.color ? {background: rgbCss(b.color)} : {border: '1px dashed #ddd'}}
+            />
+            <span className="axis-text">{MONTHS[b.month]}</span>
+            <span className="axis-text muted">{b.count || ''}</span>
+          </div>
+        ))}
+      </div>
+    </figure>
+  );
+}
+
+/** Month rows x hour columns heatmap: seasons meeting daylight. */
+function SeasonHeatmap({dated}) {
+  const [hover, setHover] = useState(null);
+  const grid = useMemo(() => {
+    const g = Array.from({length: 12}, () => new Array(24).fill(0));
+    for (const p of dated) {
+      const d = new Date(p.exif.takenAt);
+      g[d.getMonth()][d.getHours()]++;
+    }
+    return g;
+  }, [dated]);
+  const max = Math.max(...grid.flat(), 1);
+
+  const CELL = 20;
+  const GAP = 2;
+  const LEFT = 34;
+  const TOP = 8;
+  const W = LEFT + 24 * (CELL + GAP);
+  const H = TOP + 12 * (CELL + GAP) + 22;
+
+  return (
+    <figure className="chart">
+      <figcaption>
+        <span className="chart-title">Seasons × daylight</span>
+        <span className="chart-note">
+          {hover
+            ? `${MONTHS[hover[0]]}, ${hover[1]}:00 — ${grid[hover[0]][hover[1]]} photo${grid[hover[0]][hover[1]] === 1 ? '' : 's'}`
+            : 'month by hour of day'}
+        </span>
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Photos by month and hour">
+        {grid.map((row, m) =>
+          row.map((count, h) => (
+            <rect
+              key={`${m}-${h}`}
+              x={LEFT + h * (CELL + GAP)}
+              y={TOP + m * (CELL + GAP)}
+              width={CELL}
+              height={CELL}
+              rx={3}
+              fill={count ? ACCENT : '#f2f2f6'}
+              fillOpacity={count ? 0.15 + 0.85 * (count / max) : 1}
+              stroke={hover && hover[0] === m && hover[1] === h ? '#222' : 'none'}
+              onMouseEnter={() => setHover([m, h])}
+              onMouseLeave={() => setHover(null)}
+            />
+          ))
+        )}
+        {grid.map((_, m) => (
+          <text key={m} x={LEFT - 8} y={TOP + m * (CELL + GAP) + CELL / 2 + 3} textAnchor="end" className="axis-label">
+            {MONTHS[m][0]}
+          </text>
+        ))}
+        {[0, 6, 12, 18].map((h) => (
+          <text
+            key={h}
+            x={LEFT + h * (CELL + GAP) + CELL / 2}
+            y={H - 6}
+            textAnchor="middle"
+            className="axis-label"
+          >
+            {h}:00
+          </text>
+        ))}
+      </svg>
+    </figure>
+  );
+}
+
+const FOCAL_TICKS = [10, 16, 24, 35, 50, 85, 135, 200, 400, 600];
+
+/** Log-scale focal length axis; each photo is a dot in its own color,
+ * stacking into towers at favorite focal lengths. */
+function LensAxis({withExif}) {
+  const photos = useMemo(
+    () => withExif.filter((p) => p.exif.focalLength).sort((a, b) => a.name.localeCompare(b.name)),
+    [withExif]
+  );
+  if (!photos.length) return null;
+
+  const W = 720;
+  const PAD = 24;
+  const domain = [Math.log(9), Math.log(700)];
+  const x = (mm) =>
+    PAD + ((Math.log(mm) - domain[0]) / (domain[1] - domain[0])) * (W - 2 * PAD);
+
+  const stacks = new Map();
+  for (const p of photos) {
+    const key = p.exif.focalLength;
+    if (!stacks.has(key)) stacks.set(key, []);
+    stacks.get(key).push(p);
+  }
+  const maxStack = Math.max(...[...stacks.values()].map((s) => s.length));
+  const DOT = Math.min(9, Math.max(4, 150 / maxStack));
+  const plotH = Math.min(190, maxStack * DOT + 10);
+  const H = plotH + 40;
+  const baseline = plotH + 8;
+
+  const sortedFocals = [...stacks.keys()].sort((a, b) => a - b);
+  const median = sortedFocals.length
+    ? photos.map((p) => p.exif.focalLength).sort((a, b) => a - b)[Math.floor(photos.length / 2)]
+    : null;
+
+  return (
+    <figure className="chart chart-wide">
+      <figcaption>
+        <span className="chart-title">Lens axis</span>
+        <span className="chart-note">
+          each dot is a photo in its own color, stacked at its focal length (log scale)
+        </span>
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Photos by focal length">
+        <line x1={PAD} x2={W - PAD} y1={baseline} y2={baseline} stroke="#d8d8e0" />
+        {FOCAL_TICKS.map((t) => (
+          <g key={t}>
+            <line x1={x(t)} x2={x(t)} y1={baseline} y2={baseline + 4} stroke="#c8c8d2" />
+            <text x={x(t)} y={baseline + 16} textAnchor="middle" className="axis-label">
+              {t}
+            </text>
+          </g>
+        ))}
+        <text x={W - PAD} y={baseline + 28} textAnchor="end" className="axis-label">
+          mm
+        </text>
+        {median && (
+          <g>
+            <line
+              x1={x(median)}
+              x2={x(median)}
+              y1={baseline - plotH}
+              y2={baseline}
+              stroke="#c8c8d2"
+              strokeDasharray="3 3"
+            />
+            <text x={x(median)} y={baseline - plotH + 2} textAnchor="middle" className="axis-label strong">
+              median {median}mm
+            </text>
+          </g>
+        )}
+        {sortedFocals.map((mm) =>
+          stacks.get(mm).map((p, i) => (
+            <circle
+              key={p.name}
+              cx={x(mm)}
+              cy={baseline - DOT / 2 - 1 - i * DOT}
+              r={DOT / 2 - 0.5}
+              fill={rgbCss(p.color)}
+              stroke="#fff"
+              strokeWidth="1"
+            >
+              <title>{`${p.name} — ${mm}mm`}</title>
+            </circle>
+          ))
+        )}
+      </svg>
+    </figure>
+  );
+}
+
+const STOPS = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16, 22];
+
+/** Concentric rings sized like a real lens pupil per f-stop; ring weight and
+ * intensity = how often that stop is used. */
+function ApertureIris({withExif}) {
+  const [hover, setHover] = useState(null);
+  const bins = useMemo(() => {
+    const counts = new Map();
+    for (const p of withExif) {
+      if (!p.exif.fNumber) continue;
+      let best = STOPS[0];
+      for (const s of STOPS) {
+        if (Math.abs(s - p.exif.fNumber) < Math.abs(best - p.exif.fNumber)) best = s;
+      }
+      counts.set(best, (counts.get(best) ?? 0) + 1);
+    }
+    return STOPS.filter((s) => counts.has(s)).map((s) => ({stop: s, count: counts.get(s)}));
+  }, [withExif]);
+  if (!bins.length) return null;
+
+  const SIZE = 260;
+  const c = SIZE / 2;
+  const max = Math.max(...bins.map((b) => b.count));
+  const radius = (stop) => 112 / stop + 4;
+
+  return (
+    <figure className="chart">
+      <figcaption>
+        <span className="chart-title">Aperture iris</span>
+        <span className="chart-note">rings sized like the pupil at each f-stop</span>
+      </figcaption>
+      <div className="iris-row">
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Photos by aperture">
+          {bins.map((b) => (
+            <circle
+              key={b.stop}
+              cx={c}
+              cy={c}
+              r={radius(b.stop)}
+              fill="none"
+              stroke={ACCENT}
+              strokeWidth={2 + 8 * (b.count / max)}
+              strokeOpacity={
+                hover === null || hover === b.stop ? 0.25 + 0.75 * (b.count / max) : 0.12
+              }
+              onMouseEnter={() => setHover(b.stop)}
+              onMouseLeave={() => setHover(null)}
+            />
+          ))}
+          <circle cx={c} cy={c} r={2.5} fill="#999" />
+        </svg>
+        <ul className="iris-legend">
+          {bins.map((b) => (
+            <li
+              key={b.stop}
+              className={hover === b.stop ? 'strong' : ''}
+              onMouseEnter={() => setHover(b.stop)}
+              onMouseLeave={() => setHover(null)}
+            >
+              <i
+                style={{
+                  background: `rgba(${ACCENT_RGB}, ${0.25 + 0.75 * (b.count / max)})`
+                }}
+              />
+              f/{b.stop} — {b.count}
+            </li>
+          ))}
+        </ul>
+      </div>
     </figure>
   );
 }
@@ -103,65 +379,23 @@ function StatTile({value, label}) {
   );
 }
 
-const HOURS = Array.from({length: 24}, (_, h) => h);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const FOCAL_BUCKETS = [
-  {label: '≤16', max: 16},
-  {label: '17–24', max: 24},
-  {label: '25–35', max: 35},
-  {label: '36–50', max: 50},
-  {label: '51–85', max: 85},
-  {label: '86–135', max: 135},
-  {label: '136–200', max: 200},
-  {label: '200+', max: Infinity}
-];
-const STOPS = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16, 22];
-
 export default function Stats({images}) {
   const stats = useMemo(() => {
     const withExif = images.filter((i) => i.exif);
     const dated = withExif.filter((i) => i.exif.takenAt);
-
-    const hourBins = HOURS.map((h) => ({label: `${h}`, count: 0}));
-    const monthBins = MONTHS.map((m) => ({label: m, count: 0}));
     let golden = 0;
     for (const i of dated) {
-      const d = new Date(i.exif.takenAt);
-      hourBins[d.getHours()].count++;
-      monthBins[d.getMonth()].count++;
-      if ((d.getHours() >= 6 && d.getHours() < 9) || (d.getHours() >= 17 && d.getHours() < 20)) {
-        golden++;
-      }
+      const h = new Date(i.exif.takenAt).getHours();
+      if ((h >= 6 && h < 9) || (h >= 17 && h < 20)) golden++;
     }
-
-    const focalBins = FOCAL_BUCKETS.map((b) => ({label: b.label, count: 0}));
-    const focals = [];
-    for (const i of withExif) {
-      if (!i.exif.focalLength) continue;
-      focals.push(i.exif.focalLength);
-      focalBins[FOCAL_BUCKETS.findIndex((b) => i.exif.focalLength <= b.max)].count++;
-    }
-
-    const apertureBins = STOPS.map((s) => ({label: `f/${s}`, count: 0}));
-    for (const i of withExif) {
-      if (!i.exif.fNumber) continue;
-      let best = 0;
-      STOPS.forEach((s, idx) => {
-        if (Math.abs(s - i.exif.fNumber) < Math.abs(STOPS[best] - i.exif.fNumber)) best = idx;
-      });
-      apertureBins[best].count++;
-    }
-
     const cameras = new Map();
     for (const i of withExif) {
       if (i.exif.camera) cameras.set(i.exif.camera, (cameras.get(i.exif.camera) ?? 0) + 1);
     }
     const topCamera = [...cameras.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-
-    focals.sort((a, b) => a - b);
+    const focals = withExif.map((i) => i.exif.focalLength).filter(Boolean).sort((a, b) => a - b);
     const medianFocal = focals.length ? focals[Math.floor(focals.length / 2)] : null;
-
-    return {withExif, dated, hourBins, monthBins, focalBins, apertureBins, golden, topCamera, medianFocal};
+    return {withExif, dated, golden, topCamera, medianFocal};
   }, [images]);
 
   if (!stats.withExif.length) {
@@ -194,19 +428,12 @@ export default function Stats({images}) {
         {stats.topCamera && <StatTile value={stats.topCamera} label="most-used camera" />}
       </div>
       <div className="chart-grid">
-        {stats.dated.length > 0 && (
-          <Histogram title="Hour of day" bins={stats.hourBins} note="when the shutter fires" />
-        )}
-        {stats.dated.length > 0 && (
-          <Histogram title="Month of year" bins={stats.monthBins} note="seasons of shooting" />
-        )}
-        {stats.focalBins.some((b) => b.count) && (
-          <Histogram title="Focal length (mm)" bins={stats.focalBins} note="wide vs. long" />
-        )}
-        {stats.apertureBins.some((b) => b.count) && (
-          <Histogram title="Aperture" bins={stats.apertureBins} note="nearest full stop" />
-        )}
+        {stats.dated.length > 0 && <DayClock dated={stats.dated} />}
+        {stats.dated.length > 0 && <MonthStrip dated={stats.dated} />}
+        <ApertureIris withExif={stats.withExif} />
       </div>
+      {stats.dated.length > 0 && <SeasonHeatmap dated={stats.dated} />}
+      <LensAxis withExif={stats.withExif} />
     </div>
   );
 }
