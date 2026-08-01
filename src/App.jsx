@@ -110,7 +110,7 @@ export default function App() {
           {view === 'threads' && <Threads images={list} onSelect={setSelected} />}
           {view === 'timeline' && <Timeline images={list} onSelect={setSelected} />}
           {view === 'folders' && <Folders images={list} onSelect={setSelected} />}
-          {view === 'stats' && <Stats images={list} />}
+          {view === 'stats' && <Stats images={list} onSelect={setSelected} />}
           {view === 'mosaic' && <Mosaic images={list} />}
         </main>
       )}

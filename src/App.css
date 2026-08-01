@@ -456,6 +456,93 @@
   display: inline-block;
 }
 
+.stats-section {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #999;
+  margin: 30px 0 4px;
+}
+
+.month-cell {
+  border: none;
+  background: none;
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.month-cell:disabled {
+  cursor: default;
+}
+
+.month-cell.selected {
+  outline: 2px solid #222;
+}
+
+.calendar-year {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.calendar-year > .axis-text {
+  padding-top: 22px;
+  min-width: 32px;
+}
+
+.calendar-year svg {
+  flex: 1;
+  min-width: 0;
+}
+
+.ghost-label {
+  font-size: 11px;
+  fill: #c2c2cc;
+  letter-spacing: 0.04em;
+}
+
+.match-panel {
+  background: #fff;
+  border: 1px solid #d9ddf0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+}
+
+.match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: #444;
+}
+
+.match-head button {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.match-head button:hover {
+  border-color: #888;
+}
+
+.match-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 /* ---- mosaic ---- */
 
 .mosaic-controls {

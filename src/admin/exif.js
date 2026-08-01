@@ -9,6 +9,11 @@
 const TAG_MAKE = 0x010f;
 const TAG_MODEL = 0x0110;
 const TAG_EXIF_IFD = 0x8769;
+const TAG_GPS_IFD = 0x8825;
+const GPS_LAT_REF = 0x0001;
+const GPS_LAT = 0x0002;
+const GPS_LON_REF = 0x0003;
+const GPS_LON = 0x0004;
 const TAG_EXPOSURE = 0x829a;
 const TAG_FNUMBER = 0x829d;
 const TAG_ISO = 0x8827;
@@ -83,8 +88,19 @@ export async function parseExif(blob) {
       return null;
     };
 
+    const readRationals = (entry, n) => {
+      if (!entry || entry.type !== 5 || entry.num < n) return null;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const numerator = u32(entry.offset + i * 8);
+        const denominator = u32(entry.offset + i * 8 + 4);
+        out.push(denominator ? numerator / denominator : 0);
+      }
+      return out;
+    };
+
     const ifd0 = {};
-    readEntries(u32(4), new Set([TAG_MAKE, TAG_MODEL, TAG_EXIF_IFD]), ifd0);
+    readEntries(u32(4), new Set([TAG_MAKE, TAG_MODEL, TAG_EXIF_IFD, TAG_GPS_IFD]), ifd0);
     const exifTags = {};
     if (ifd0[TAG_EXIF_IFD]) {
       readEntries(
@@ -112,6 +128,28 @@ export async function parseExif(blob) {
     if (iso) result.iso = iso;
     const exposure = readValue(exifTags[TAG_EXPOSURE]);
     if (exposure) result.exposure = exposure;
+    // GPS: harvested now so a future photo-map has data to draw from.
+    if (ifd0[TAG_GPS_IFD]) {
+      const gpsTags = {};
+      readEntries(
+        u32(ifd0[TAG_GPS_IFD].offset),
+        new Set([GPS_LAT_REF, GPS_LAT, GPS_LON_REF, GPS_LON]),
+        gpsTags
+      );
+      const latParts = readRationals(gpsTags[GPS_LAT], 3);
+      const lonParts = readRationals(gpsTags[GPS_LON], 3);
+      if (latParts && lonParts) {
+        let lat = latParts[0] + latParts[1] / 60 + latParts[2] / 3600;
+        let lon = lonParts[0] + lonParts[1] / 60 + lonParts[2] / 3600;
+        if (readValue(gpsTags[GPS_LAT_REF]) === 'S') lat = -lat;
+        if (readValue(gpsTags[GPS_LON_REF]) === 'W') lon = -lon;
+        if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat !== 0 || lon !== 0)) {
+          result.lat = Math.round(lat * 1e5) / 1e5;
+          result.lon = Math.round(lon * 1e5) / 1e5;
+        }
+      }
+    }
+
     const make = readValue(ifd0[TAG_MAKE]) ?? '';
     const model = readValue(ifd0[TAG_MODEL]) ?? '';
     if (make || model) {
