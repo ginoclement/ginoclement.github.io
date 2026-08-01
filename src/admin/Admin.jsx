@@ -817,7 +817,17 @@ export default function Admin() {
   );
 }
 
+function missingMetadata(photo) {
+  const missing = [];
+  if (!photo.color) missing.push('colors');
+  if (!photo.exif) missing.push('EXIF');
+  else if (!photo.exif.takenAt) missing.push('capture date');
+  if (!photo.hash) missing.push('duplicate hash');
+  return missing;
+}
+
 function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompute, onDelete, onPreview}) {
+  const missing = missingMetadata(photo);
   return (
     <div className={`card${selected ? ' selected' : ''}${photo.published ? '' : ' draft'}`}>
       <div
@@ -841,6 +851,14 @@ function PhotoCard({photo, selected, onSelect, onPublish, onPickColor, onRecompu
         <span className={`badge ${photo.archived ? 'draft' : photo.published ? 'live' : 'draft'}`}>
           {photo.archived ? 'archived' : photo.published ? 'published' : 'draft'}
         </span>
+        {missing.length > 0 && (
+          <span
+            className="meta-warning"
+            title={`Missing ${missing.join(', ')} — run Analyze to extract what the file has`}
+          >
+            !
+          </span>
+        )}
       </div>
       <div className="card-body">
         <p className="name" title={photo.name}>
