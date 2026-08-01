@@ -90,7 +90,8 @@ export function LensAxis({withExif, onSelect}) {
   );
 }
 
-/** Concentric rings sized like a real lens pupil per f-stop. Rings filter. */
+/** A working iris diaphragm: eight blades slide to form the physical
+ * opening of the hovered/selected f-stop. Legend bars carry the counts. */
 export function ApertureIris({withExif, filter, onFilter}) {
   const [hover, setHover] = useState(null);
   const bins = useMemo(() => {
@@ -105,10 +106,19 @@ export function ApertureIris({withExif, filter, onFilter}) {
   if (!bins.length) return null;
 
   const SIZE = 260;
-  const c = SIZE / 2;
+  const cx = SIZE / 2;
   const max = Math.max(...bins.map((b) => b.count));
-  const radius = (stop) => 112 / stop + 4;
-  const active = (stop) => hover === stop || filter?.key === `stop:${stop}`;
+  const mostUsed = bins.reduce((a, b) => (b.count > a.count ? b : a)).stop;
+  const filteredStop = filter?.key.startsWith('stop:') ? Number(filter.key.slice(5)) : null;
+  const activeStop = hover ?? filteredStop ?? mostUsed;
+  const activeBin = bins.find((b) => b.stop === activeStop);
+
+  // Physical pupil: diameter proportional to 1/f, clamped for visibility.
+  const BARREL = 116;
+  const THROAT = 100;
+  const BLADE_R = 86;
+  const opening = Math.max(7, Math.min(64, 90 / activeStop));
+  const bladeOffset = opening + BLADE_R;
 
   const makeFilter = (stop) => ({
     key: `stop:${stop}`,
@@ -120,48 +130,81 @@ export function ApertureIris({withExif, filter, onFilter}) {
     <figure className="chart">
       <figcaption>
         <span className="chart-title">Aperture iris</span>
-        <span className="chart-note">rings sized like the pupil at each f-stop — click to filter</span>
+        <span className="chart-note">
+          the blades form the real opening at each f-stop — hover the scale, click to filter
+        </span>
       </figcaption>
       <div className="iris-row">
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label="Photos by aperture">
-          {bins.map((b) => (
-            <circle
-              key={b.stop}
-              cx={c}
-              cy={c}
-              r={radius(b.stop)}
-              fill="none"
-              stroke={ACCENT}
-              strokeWidth={2 + 8 * (b.count / max)}
-              strokeOpacity={
-                hover === null && !filter?.key.startsWith('stop:')
-                  ? 0.25 + 0.75 * (b.count / max)
-                  : active(b.stop)
-                    ? 0.25 + 0.75 * (b.count / max)
-                    : 0.12
-              }
-              style={{cursor: 'pointer'}}
-              onMouseEnter={() => setHover(b.stop)}
-              onMouseLeave={() => setHover(null)}
-              onClick={() => onFilter(makeFilter(b.stop))}
-            />
-          ))}
-          <circle cx={c} cy={c} r={2.5} fill="#999" />
-        </svg>
+        <div className="iris-stage">
+          <svg
+            viewBox={`0 0 ${SIZE} ${SIZE}`}
+            role="img"
+            aria-label="Aperture opening per f-stop"
+            onClick={() => activeBin && onFilter(makeFilter(activeStop))}
+            style={{cursor: 'pointer'}}
+          >
+            <defs>
+              <radialGradient id="iris-light">
+                <stop offset="0%" stopColor="#fff9ec" />
+                <stop offset="70%" stopColor="#f6e8c8" />
+                <stop offset="100%" stopColor="#e8d4a8" />
+              </radialGradient>
+              <clipPath id="iris-throat">
+                <circle cx={cx} cy={cx} r={THROAT} />
+              </clipPath>
+            </defs>
+            <circle cx={cx} cy={cx} r={BARREL} fill="#17171c" />
+            <circle cx={cx} cy={cx} r={THROAT + 4} fill="#0d0d11" />
+            <circle cx={cx} cy={cx} r={THROAT} fill="url(#iris-light)" />
+            <g clipPath="url(#iris-throat)">
+              {Array.from({length: 8}, (_, i) => (
+                <g key={i} transform={`rotate(${i * 45} ${cx} ${cx})`}>
+                  <circle
+                    cx={cx}
+                    cy={cx}
+                    r={BLADE_R}
+                    className="iris-blade"
+                    style={{transform: `translateX(${bladeOffset}px)`}}
+                  />
+                </g>
+              ))}
+            </g>
+            <circle cx={cx} cy={cx} r={BARREL} fill="none" stroke="#3a3a44" strokeWidth="5" />
+            <circle cx={cx} cy={cx} r={BARREL + 2.5} fill="none" stroke="#c9c9d2" strokeWidth="1" />
+          </svg>
+          <p className="iris-readout">
+            f/{activeStop}
+            {activeBin && (
+              <span>
+                {' '}· {activeBin.count} photo{activeBin.count === 1 ? '' : 's'}
+              </span>
+            )}
+          </p>
+        </div>
         <ul className="iris-legend">
-          {bins.map((b) => (
-            <li
-              key={b.stop}
-              className={active(b.stop) ? 'strong' : ''}
-              onMouseEnter={() => setHover(b.stop)}
-              onMouseLeave={() => setHover(null)}
-              onClick={() => onFilter(makeFilter(b.stop))}
-              style={{cursor: 'pointer'}}
-            >
-              <i style={{background: `rgba(${ACCENT_RGB}, ${0.25 + 0.75 * (b.count / max)})`}} />
-              f/{b.stop} — {b.count}
-            </li>
-          ))}
+          {bins.map((b) => {
+            const selected = hover === b.stop || filteredStop === b.stop;
+            return (
+              <li
+                key={b.stop}
+                className={selected ? 'strong' : ''}
+                onMouseEnter={() => setHover(b.stop)}
+                onMouseLeave={() => setHover(null)}
+                onClick={() => onFilter(makeFilter(b.stop))}
+                style={{cursor: 'pointer'}}
+              >
+                <span className="iris-f">f/{b.stop}</span>
+                <i
+                  className="iris-bar"
+                  style={{
+                    width: `${8 + (b.count / max) * 64}px`,
+                    background: `rgba(${ACCENT_RGB}, ${0.35 + 0.65 * (b.count / max)})`
+                  }}
+                />
+                <span className="iris-count">{b.count}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </figure>
