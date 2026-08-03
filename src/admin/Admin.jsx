@@ -413,6 +413,30 @@ export default function Admin() {
       setSelected(new Set());
     });
 
+  const deleteSelected = () => {
+    const names = [...selected];
+    const preview = names.slice(0, 5).map(baseOf).join(', ');
+    if (
+      !window.confirm(
+        `Permanently delete ${names.length} photo(s) from the bucket?\n\n` +
+          `${preview}${names.length > 5 ? `, and ${names.length - 5} more` : ''}\n\n` +
+          'This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    run('Deleting…', async () => {
+      let done = 0;
+      for (const name of names) {
+        setStatus(`Deleting ${name} (${++done}/${names.length})…`);
+        await api.remove(token, name);
+        setPhotos((p) => p.filter((x) => x.name !== name));
+      }
+      setSelected(new Set());
+      return `Deleted ${names.length} photo(s).`;
+    });
+  };
+
   const moveSelected = () => {
     const input = window.prompt(
       'Move selected photos to folder (empty for top level):',
@@ -660,6 +684,7 @@ export default function Admin() {
             ) : (
               <button onClick={() => bulk({archived: true, published: false})}>Archive</button>
             )}
+            <button className="danger" onClick={deleteSelected}>Delete</button>
           </>
         )}
       </div>
