@@ -20,6 +20,7 @@
  */
 
 const MANIFEST_KEY = '_manifest.json';
+const LINKS_KEY = '_links.json';
 const THUMB_PREFIX = '_thumbs/';
 const LEGACY_THUMB_PREFIX = '_thumb_';
 const JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
@@ -196,6 +197,20 @@ async function handle(request, env) {
     });
   }
 
+  if (method === 'GET' && url.pathname === '/api/links') {
+    const obj = await env.PHOTOS.get(LINKS_KEY);
+    const body = obj ? await obj.text() : '{"links":[]}';
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        ...cors,
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=60'
+      }
+    });
+  }
+
   if (method === 'GET' && url.pathname.startsWith('/images/')) {
     const name = photoName(url.pathname, '/images/');
     if (!name) return json({error: 'bad name'}, 400, cors);
@@ -220,6 +235,30 @@ async function handle(request, env) {
 
   const user = await requireAuth(request, env);
   if (!user) return json({error: 'unauthorized'}, 401, cors);
+
+  if (method === 'PUT' && url.pathname === '/api/links') {
+    let data;
+    try {
+      data = await request.json();
+    } catch {
+      return json({error: 'bad json'}, 400, cors);
+    }
+    if (!Array.isArray(data.links) || data.links.length > 100) {
+      return json({error: 'links must be an array of at most 100'}, 400, cors);
+    }
+    const links = data.links
+      .map((l) => ({
+        title: String(l.title ?? '').slice(0, 80),
+        url: String(l.url ?? '').slice(0, 300),
+        description: String(l.description ?? '').slice(0, 300),
+        tag: String(l.tag ?? '').slice(0, 40)
+      }))
+      .filter((l) => l.title && /^https?:\/\//.test(l.url));
+    await env.PHOTOS.put(LINKS_KEY, JSON.stringify({links}), {
+      httpMetadata: {contentType: 'application/json'}
+    });
+    return json({links}, 200, cors);
+  }
 
   if (method === 'GET' && url.pathname === '/api/photos') {
     const manifest = await loadManifest(env);

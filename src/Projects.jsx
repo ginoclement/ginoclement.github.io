@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {API_BASE_URL} from './config.js';
 
 const GITHUB_USER = 'ginoclement';
 const EXCLUDED = new Set(['ginoclement.github.io']);
@@ -25,9 +26,25 @@ const LANGUAGE_COLORS = {
   PHP: '#4F5D95'
 };
 
+// Stable accent hue per link, derived from its title.
+function linkAccent(title) {
+  let hash = 0;
+  for (const ch of title) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${hash}, 55%, 52%)`;
+}
+
 export default function Projects({open, onClose}) {
   const [repos, setRepos] = useState(null);
+  const [links, setLinks] = useState(null);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!open || links || !API_BASE_URL) return;
+    fetch(`${API_BASE_URL}/api/links`)
+      .then((r) => (r.ok ? r.json() : {links: []}))
+      .then((json) => setLinks(json.links ?? []))
+      .catch(() => setLinks([]));
+  }, [open, links]);
 
   useEffect(() => {
     if (!open || repos) return;
@@ -56,6 +73,45 @@ export default function Projects({open, onClose}) {
           <h2>Projects</h2>
           <button className="close" onClick={onClose} aria-label="Close">×</button>
         </div>
+        {links?.length > 0 && (
+          <>
+            <h3 className="projects-subhead">Apps &amp; sites</h3>
+            <div className="projects-grid">
+              {links.map((link) => {
+                const accent = linkAccent(link.title);
+                let domain = '';
+                try {
+                  domain = new URL(link.url).host;
+                } catch {
+                  domain = link.url;
+                }
+                return (
+                  <a
+                    key={link.url}
+                    className="project-card"
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{'--accent': accent}}
+                  >
+                    <div className="app-head">
+                      <span className="monogram" style={{background: accent}}>
+                        {link.title.slice(0, 1).toUpperCase()}
+                      </span>
+                      <h3>{link.title}</h3>
+                    </div>
+                    {link.description && <p>{link.description}</p>}
+                    <div className="project-meta">
+                      <span>{domain}</span>
+                      {link.tag && <span className="topics-inline">{link.tag}</span>}
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+            <h3 className="projects-subhead">On GitHub</h3>
+          </>
+        )}
         {failed && (
           <p className="projects-note">
             Couldn't reach GitHub — see{' '}

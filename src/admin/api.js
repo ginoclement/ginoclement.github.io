@@ -39,5 +39,10 @@ export const api = {
       headers: {'content-type': 'application/json'}
     }),
   remove: (token, name) =>
-    request(token, 'DELETE', `/api/photos/${encodePhotoPath(name)}`)
+    request(token, 'DELETE', `/api/photos/${encodePhotoPath(name)}`),
+  saveLinks: (token, links) =>
+    request(token, 'PUT', '/api/links', {
+      body: JSON.stringify({links}),
+      headers: {'content-type': 'application/json'}
+    })
 };

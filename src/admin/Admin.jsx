@@ -5,6 +5,7 @@ import {computePalette} from './kmeans.js';
 import {compressImage, makeThumbnail, formatBytes} from './imageTools.js';
 import {parseExif} from './exif.js';
 import {computeHash, isDuplicatePair, groupDuplicates} from './phash.js';
+import LinksEditor from './LinksEditor.jsx';
 
 // Bulk compression targets photos above this size when nothing is selected.
 const COMPRESS_THRESHOLD = 1024 * 1024;
@@ -165,6 +166,7 @@ export default function Admin() {
   const [previewName, setPreviewName] = useState(null);
   const [dupGroups, setDupGroups] = useState(null);
   const [notices, setNotices] = useState([]);
+  const [showLinks, setShowLinks] = useState(false);
   const signInRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -663,6 +665,12 @@ export default function Admin() {
         >
           Find duplicates
         </button>
+        <button
+          onClick={() => setShowLinks((v) => !v)}
+          title="Edit the project links shown on the site"
+        >
+          Links
+        </button>
         <button onClick={exportJson} title="Download published photos as images.json">
           Export JSON
         </button>
@@ -758,6 +766,8 @@ export default function Admin() {
       )}
 
       <p className="drop-hint">…or drag &amp; drop images anywhere on this page.</p>
+
+      {showLinks && <LinksEditor token={token} run={run} />}
 
       {dupGroups && (
         <div className="dup-panel">

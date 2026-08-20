@@ -303,6 +303,79 @@ button.danger:hover {
   font-size: 12px;
 }
 
+.links-panel {
+  background: #1a1a22;
+  border: 1px solid #2c3452;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+
+.links-panel .match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: #c9c9d8;
+  margin-bottom: 10px;
+}
+
+.links-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.link-row input {
+  background: #12121a;
+  color: #e8e8ee;
+  border: 1px solid #34344a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.link-row input:focus {
+  outline: none;
+  border-color: #5972c6;
+}
+
+.link-title {
+  width: 130px;
+}
+
+.link-url {
+  flex: 2;
+  min-width: 200px;
+}
+
+.link-desc {
+  flex: 3;
+  min-width: 180px;
+}
+
+.link-tag {
+  width: 70px;
+}
+
+.link-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.link-buttons button {
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
 .dup-panel {
   background: #1a1a22;
   border: 1px solid #4a4030;
