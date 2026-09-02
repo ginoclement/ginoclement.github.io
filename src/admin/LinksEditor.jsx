@@ -9,7 +9,8 @@ const SUGGESTED = [
   {title: 'Words', url: 'https://words.ginoclement.com', description: 'Word game', tag: 'app'},
   {title: 'Cribbage', url: 'https://cribbage.ginoclement.com', description: 'Cribbage scorer', tag: 'app'},
   {title: 'log.broker', url: 'https://log.broker', description: 'Log reporting', tag: 'app'},
-  {title: 'Terrain', url: 'https://github.com/ginoclement/personal', description: 'deck.gl terrain experiments', tag: 'project'},
+  {title: 'Terrain', url: 'https://ginoclement.github.io/terrain/', description: 'deck.gl terrain experiments', tag: 'project'},
+  {title: 'Family Tree', url: 'https://ginoclement.github.io/familytree/', description: 'Interactive family tree', tag: 'project'},
   {title: 'Seattle Graphs', url: 'https://seattle-graphs.vercel.app', description: 'Seattle data visualizations', tag: 'viz'},
   {title: 'Cryptoviz', url: 'https://cryptoviz.vercel.app', description: 'Crypto visualization', tag: 'viz'},
   {title: 'Rifle Design', url: 'https://rifledesign.vercel.app', description: '', tag: 'site'}
