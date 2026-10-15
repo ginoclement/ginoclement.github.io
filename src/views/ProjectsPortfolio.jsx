@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {API_BASE_URL} from '../config.js';
+import ProjectHedron from './ProjectHedron.jsx';
 
 const GITHUB_USER = 'ginoclement';
 const EXCLUDED = new Set(['ginoclement.github.io']);
@@ -226,6 +227,7 @@ export default function ProjectsPortfolio() {
         Selected work — live previews, not screenshots. Hover a tile; click to
         visit.
       </p>
+      {links?.length >= 2 && <ProjectHedron links={links} />}
       <div className="po-grid">
         {(links ?? []).map((link, i) => (
           <Tile key={link.url} link={link} index={i} />

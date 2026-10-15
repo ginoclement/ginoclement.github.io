@@ -758,6 +758,90 @@
   object-fit: cover;
 }
 
+/* ---- project polyhedron ---- */
+
+.ph-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 6px 0 30px;
+}
+
+.ph-stage {
+  width: 340px;
+  height: 320px;
+  perspective: 950px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.ph-stage:active {
+  cursor: grabbing;
+}
+
+.ph-solid {
+  position: relative;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+.ph-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+  transition: filter 0.15s;
+}
+
+.ph-face:hover {
+  filter: brightness(1.15);
+}
+
+.ph-face.blank {
+  pointer-events: none;
+}
+
+.ph-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #fff;
+  text-align: center;
+  padding: 8px;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.ph-label strong {
+  font-size: 15px;
+  line-height: 1.15;
+  max-width: 110px;
+}
+
+.ph-label em {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.ph-caption {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #999;
+}
+
 /* ---- projects portfolio: bento tiles + marquee ---- */
 
 .po-grid {
