@@ -376,6 +376,43 @@ button.danger:hover {
   font-size: 12px;
 }
 
+.page-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 6px;
+}
+
+.page-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #12121a;
+  border: 1px solid #26263a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.page-toggle input {
+  accent-color: #5972c6;
+}
+
+.page-toggle.off .page-name,
+.page-toggle.off .page-note {
+  color: #666672;
+}
+
+.page-name {
+  font-weight: 600;
+  color: #e8e8ee;
+}
+
+.page-note {
+  color: #9a9aad;
+  font-size: 11px;
+}
+
 .dup-panel {
   background: #1a1a22;
   border: 1px solid #4a4030;

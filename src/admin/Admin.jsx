@@ -6,6 +6,7 @@ import {compressImage, makeThumbnail, formatBytes} from './imageTools.js';
 import {parseExif} from './exif.js';
 import {computeHash, isDuplicatePair, groupDuplicates} from './phash.js';
 import LinksEditor from './LinksEditor.jsx';
+import SettingsEditor from './SettingsEditor.jsx';
 
 // Bulk compression targets photos above this size when nothing is selected.
 const COMPRESS_THRESHOLD = 1024 * 1024;
@@ -667,9 +668,9 @@ export default function Admin() {
         </button>
         <button
           onClick={() => setShowLinks((v) => !v)}
-          title="Edit the project links shown on the site"
+          title="Site settings: page visibility and project links"
         >
-          Links
+          Site
         </button>
         <button onClick={exportJson} title="Download published photos as images.json">
           Export JSON
@@ -767,7 +768,12 @@ export default function Admin() {
 
       <p className="drop-hint">…or drag &amp; drop images anywhere on this page.</p>
 
-      {showLinks && <LinksEditor token={token} run={run} />}
+      {showLinks && (
+        <>
+          <SettingsEditor token={token} run={run} />
+          <LinksEditor token={token} run={run} />
+        </>
+      )}
 
       {dupGroups && (
         <div className="dup-panel">

@@ -3,7 +3,6 @@ import bundledImages from './images.json';
 import {API_BASE_URL, imageUrl} from './config.js';
 import {hueSortKey} from './lib/color.js';
 import ImageBox from './ImageBox.jsx';
-import Projects from './Projects.jsx';
 import ColorSpace from './views/ColorSpace.jsx';
 import Wall from './views/Wall.jsx';
 import Threads from './views/Threads.jsx';
@@ -11,6 +10,7 @@ import Timeline from './views/Timeline.jsx';
 import Folders from './views/Folders.jsx';
 import Stats from './views/Stats.jsx';
 import Mosaic from './views/Mosaic.jsx';
+import ProjectsOrbit from './views/ProjectsOrbit.jsx';
 import './App.css';
 
 const VIEWS = [
@@ -20,7 +20,8 @@ const VIEWS = [
   {key: 'timeline', label: 'Timeline'},
   {key: 'folders', label: 'Collections'},
   {key: 'stats', label: 'Stats'},
-  {key: 'mosaic', label: 'Mosaic'}
+  {key: 'mosaic', label: 'Mosaic'},
+  {key: 'projects', label: 'Projects'}
 ];
 
 const HINTS = {
@@ -30,7 +31,8 @@ const HINTS = {
   timeline: 'a color diary in capture order',
   folders: 'collections and their color signatures',
   stats: 'shooting habits, from EXIF',
-  mosaic: 'photos made of photos'
+  mosaic: 'photos made of photos',
+  projects: 'everything else in orbit'
 };
 
 export default function App() {
@@ -41,8 +43,8 @@ export default function App() {
   const [view, setView] = useState('colors');
   const [selected, setSelected] = useState(null);
   const [simTarget, setSimTarget] = useState(null);
-  const [showProjects, setShowProjects] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [settings, setSettings] = useState(null);
 
   useEffect(() => {
     if (!API_BASE_URL) return;
@@ -50,7 +52,23 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
       .then((json) => setImages(json.data ?? []))
       .catch(() => setImages(bundledImages.data));
+    fetch(`${API_BASE_URL}/api/settings`)
+      .then((r) => (r.ok ? r.json() : {views: {}}))
+      .then((json) => setSettings(json.views ?? {}))
+      .catch(() => setSettings({}));
   }, []);
+
+  // Pages hidden in the admin's site settings drop out of the nav.
+  const visibleViews = useMemo(
+    () => VIEWS.filter((v) => settings?.[v.key] !== false),
+    [settings]
+  );
+
+  useEffect(() => {
+    if (visibleViews.length && !visibleViews.some((v) => v.key === view)) {
+      setView(visibleViews[0].key);
+    }
+  }, [visibleViews, view]);
 
   const list = images ?? [];
 
@@ -90,7 +108,7 @@ export default function App() {
         </div>
         <nav>
           <div className="view-nav">
-            {VIEWS.map((v) => (
+            {visibleViews.map((v) => (
               <button
                 key={v.key}
                 className={`nav-btn${view === v.key ? ' active' : ''}`}
@@ -100,9 +118,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button className="nav-btn" onClick={() => setShowProjects(true)}>
-            Projects
-          </button>
           <a
             className="nav-btn"
             href="https://github.com/ginoclement"
@@ -113,8 +128,7 @@ export default function App() {
           </a>
         </nav>
       </header>
-      <Projects open={showProjects} onClose={() => setShowProjects(false)} />
-      {images?.length === 0 && (
+      {images?.length === 0 && view !== 'projects' && (
         <p className="status-msg">No photos published yet — check back soon.</p>
       )}
       <ImageBox
@@ -148,6 +162,7 @@ export default function App() {
           {view === 'folders' && <Folders images={list} onSelect={setSelected} />}
           {view === 'stats' && <Stats images={list} onSelect={setSelected} />}
           {view === 'mosaic' && <Mosaic images={list} />}
+          {view === 'projects' && <ProjectsOrbit />}
         </main>
       )}
     </div>

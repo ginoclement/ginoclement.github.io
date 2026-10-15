@@ -44,5 +44,10 @@ export const api = {
     request(token, 'PUT', '/api/links', {
       body: JSON.stringify({links}),
       headers: {'content-type': 'application/json'}
+    }),
+  saveSettings: (token, views) =>
+    request(token, 'PUT', '/api/settings', {
+      body: JSON.stringify({views}),
+      headers: {'content-type': 'application/json'}
     })
 };
