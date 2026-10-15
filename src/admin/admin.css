@@ -366,6 +366,26 @@ button.danger:hover {
   width: 70px;
 }
 
+.face-thumb {
+  width: 46px;
+  height: 34px;
+  padding: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.face-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .link-buttons {
   display: flex;
   gap: 4px;

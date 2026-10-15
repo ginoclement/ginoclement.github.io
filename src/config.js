@@ -27,3 +27,7 @@ export function imageUrl(name, {thumb = false, v} = {}) {
   const query = params.toString();
   return `${IMAGE_BASE_URL}/${encodePhotoPath(name)}${query ? `?${query}` : ''}`;
 }
+
+export function faceUrl(slug, v) {
+  return `${API_BASE_URL}/faces/${slug}${v ? `?v=${v}` : ''}`;
+}

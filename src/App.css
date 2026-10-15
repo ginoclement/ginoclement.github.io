@@ -842,6 +842,62 @@
   color: #999;
 }
 
+/* ---- polyhedron face art ---- */
+
+.ph-art {
+  position: absolute;
+  inset: 0;
+  background-size: 135% 135%;
+  background-position: 50% 50%;
+  pointer-events: none;
+}
+
+.ph-face.has-img .ph-label {
+  position: relative;
+  z-index: 1;
+  padding: 10px 8px 8px;
+  background: linear-gradient(transparent, rgba(8, 10, 20, 0.6));
+  border-radius: 8px;
+}
+
+.ph-still .ph-art {
+  background-size: cover;
+}
+
+.ph-drift .ph-art {
+  animation: ph-drift 16s ease-in-out infinite alternate;
+  animation-delay: var(--face-delay, 0s);
+}
+
+@keyframes ph-drift {
+  from {
+    background-position: 18% 30%;
+  }
+  to {
+    background-position: 82% 70%;
+  }
+}
+
+.ph-parallax .ph-art {
+  background-position: calc(50% + var(--spin, 0px)) 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-drift .ph-art {
+    animation: none;
+  }
+}
+
+/* ---- face thumbs in the admin link rows ---- */
+
+.po-shot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* ---- projects portfolio: bento tiles + marquee ---- */
 
 .po-grid {

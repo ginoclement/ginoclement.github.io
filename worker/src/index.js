@@ -226,6 +226,21 @@ async function handle(request, env) {
     });
   }
 
+  if (method === 'GET' && url.pathname.startsWith('/faces/')) {
+    const slug = url.pathname.slice('/faces/'.length);
+    if (!/^[a-z0-9-]{1,60}$/.test(slug)) return json({error: 'bad name'}, 400, cors);
+    const obj = await env.PHOTOS.get(`_faces/${slug}`);
+    if (!obj) return json({error: 'not found'}, 404, cors);
+    return new Response(obj.body, {
+      headers: {
+        'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg',
+        etag: obj.httpEtag,
+        'cache-control': 'public, max-age=86400',
+        'access-control-allow-origin': '*'
+      }
+    });
+  }
+
   if (method === 'GET' && url.pathname.startsWith('/images/')) {
     const name = photoName(url.pathname, '/images/');
     if (!name) return json({error: 'bad name'}, 400, cors);
@@ -263,10 +278,32 @@ async function handle(request, env) {
     for (const [key, value] of entries) {
       if (typeof value === 'boolean') views[String(key).slice(0, 40)] = value;
     }
-    await env.PHOTOS.put(SETTINGS_KEY, JSON.stringify({views}), {
+    const faceStyle = ['still', 'drift', 'parallax'].includes(data.faceStyle)
+      ? data.faceStyle
+      : 'drift';
+    await env.PHOTOS.put(SETTINGS_KEY, JSON.stringify({views, faceStyle}), {
       httpMetadata: {contentType: 'application/json'}
     });
-    return json({views}, 200, cors);
+    return json({views, faceStyle}, 200, cors);
+  }
+
+  if (url.pathname.startsWith('/api/faces/')) {
+    const slug = url.pathname.slice('/api/faces/'.length);
+    if (!/^[a-z0-9-]{1,60}$/.test(slug)) return json({error: 'bad name'}, 400, cors);
+    if (method === 'PUT') {
+      const contentType = request.headers.get('content-type') ?? '';
+      if (!contentType.startsWith('image/')) {
+        return json({error: 'body must be an image'}, 400, cors);
+      }
+      await env.PHOTOS.put(`_faces/${slug}`, request.body, {
+        httpMetadata: {contentType}
+      });
+      return json({image: slug}, 200, cors);
+    }
+    if (method === 'DELETE') {
+      await env.PHOTOS.delete(`_faces/${slug}`);
+      return json({deleted: slug}, 200, cors);
+    }
   }
 
   if (method === 'PUT' && url.pathname === '/api/links') {
@@ -284,7 +321,9 @@ async function handle(request, env) {
         title: String(l.title ?? '').slice(0, 80),
         url: String(l.url ?? '').slice(0, 300),
         description: String(l.description ?? '').slice(0, 300),
-        tag: String(l.tag ?? '').slice(0, 40)
+        tag: String(l.tag ?? '').slice(0, 40),
+        image: /^[a-z0-9-]{1,60}$/.test(l.image ?? '') ? l.image : '',
+        imageV: Number(l.imageV) || 0
       }))
       .filter((l) => l.title && /^https?:\/\//.test(l.url));
     await env.PHOTOS.put(LINKS_KEY, JSON.stringify({links}), {

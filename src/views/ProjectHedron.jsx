@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useRef} from 'react';
+import {faceUrl} from '../config.js';
 
 /**
  * A Platonic solid whose faces are the projects: 4 → tetrahedron,
@@ -151,7 +152,7 @@ function accentHue(title) {
   return hash;
 }
 
-export default function ProjectHedron({links}) {
+export default function ProjectHedron({links, faceStyle = 'drift'}) {
   const solidRef = useRef(null);
   const dragRef = useRef({down: false, moved: 0, rx: -18, ry: 24, vx: 0.12, vy: 0.05, px: 0, py: 0});
 
@@ -173,6 +174,8 @@ export default function ProjectHedron({links}) {
         state.vy += (0.05 - state.vy) * 0.01;
       }
       el.style.transform = `rotateX(${state.rx}deg) rotateY(${state.ry}deg)`;
+      // Drives the parallax face style: background shifts with the spin.
+      el.style.setProperty('--spin', `${(Math.sin((state.ry * Math.PI) / 180) * 16).toFixed(2)}px`);
       raf = requestAnimationFrame(tick);
     };
     if (reduced) {
@@ -225,10 +228,11 @@ export default function ProjectHedron({links}) {
           {faces.map((face, i) => {
             const link = links[i];
             const hue = link ? accentHue(link.title) : 230;
+            const hasImage = Boolean(link?.image);
             return (
               <a
                 key={i}
-                className={`ph-face${link ? '' : ' blank'}`}
+                className={`ph-face${link ? '' : ' blank'}${hasImage ? ` has-img ph-${faceStyle}` : ''}`}
                 href={link?.url}
                 target="_blank"
                 rel="noreferrer"
@@ -246,9 +250,16 @@ export default function ProjectHedron({links}) {
                   transform: face.matrix,
                   background: link
                     ? `linear-gradient(145deg, hsl(${hue}, 62%, 60%), hsl(${(hue + 40) % 360}, 58%, 42%))`
-                    : 'linear-gradient(145deg, #2b2b36, #17171f)'
+                    : 'linear-gradient(145deg, #2b2b36, #17171f)',
+                  '--face-delay': `${-(i * 1.7).toFixed(1)}s`
                 }}
               >
+                {hasImage && (
+                  <span
+                    className="ph-art"
+                    style={{backgroundImage: `url(${faceUrl(link.image, link.imageV)})`}}
+                  />
+                )}
                 {link ? (
                   <span className="ph-label">
                     <strong>{link.title}</strong>

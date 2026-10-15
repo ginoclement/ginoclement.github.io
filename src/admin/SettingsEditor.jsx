@@ -14,14 +14,24 @@ const PAGES = [
 ];
 
 /** Show/hide toggles for each page of the public site. */
+const FACE_STYLES = [
+  {key: 'still', label: 'Still', note: 'static screenshot'},
+  {key: 'drift', label: 'Drift', note: 'slow ken-burns pan'},
+  {key: 'parallax', label: 'Parallax', note: 'shifts with the spin'}
+];
+
 export default function SettingsEditor({token, run}) {
   const [views, setViews] = useState(null);
+  const [faceStyle, setFaceStyle] = useState('drift');
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/settings`)
       .then((r) => (r.ok ? r.json() : {views: {}}))
-      .then(({views: saved}) => setViews(saved ?? {}))
+      .then((saved) => {
+        setViews(saved.views ?? {});
+        if (saved.faceStyle) setFaceStyle(saved.faceStyle);
+      })
       .catch(() => setViews({}));
   }, []);
 
@@ -38,10 +48,11 @@ export default function SettingsEditor({token, run}) {
 
   const save = () =>
     run('Saving site settings…', async () => {
-      const {views: saved} = await api.saveSettings(token, views);
-      setViews(saved);
+      const saved = await api.saveSettings(token, views, faceStyle);
+      setViews(saved.views);
+      if (saved.faceStyle) setFaceStyle(saved.faceStyle);
       setDirty(false);
-      return 'Page visibility published — the site picks it up within a minute.';
+      return 'Site settings published — the site picks them up within a minute.';
     });
 
   return (
@@ -70,6 +81,35 @@ export default function SettingsEditor({token, run}) {
       <p className="drop-hint">
         Hidden pages disappear from the nav; the first visible page becomes the
         landing view. At least one page stays on.
+      </p>
+      <div className="match-head" style={{marginTop: 12}}>
+        <span>
+          <strong>Polyhedron faces</strong> — how face images move on the 3D solid
+        </span>
+      </div>
+      <div className="page-toggles">
+        {FACE_STYLES.map((style) => (
+          <label
+            key={style.key}
+            className={`page-toggle${faceStyle === style.key ? '' : ' off'}`}
+          >
+            <input
+              type="radio"
+              name="face-style"
+              checked={faceStyle === style.key}
+              onChange={() => {
+                setFaceStyle(style.key);
+                setDirty(true);
+              }}
+            />
+            <span className="page-name">{style.label}</span>
+            <span className="page-note">{style.note}</span>
+          </label>
+        ))}
+      </div>
+      <p className="drop-hint">
+        Face images are uploaded per link below (a screenshot of each site works
+        best); links without an image keep their gradient.
       </p>
     </div>
   );

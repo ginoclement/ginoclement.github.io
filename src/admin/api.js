@@ -45,9 +45,15 @@ export const api = {
       body: JSON.stringify({links}),
       headers: {'content-type': 'application/json'}
     }),
-  saveSettings: (token, views) =>
+  saveSettings: (token, views, faceStyle) =>
     request(token, 'PUT', '/api/settings', {
-      body: JSON.stringify({views}),
+      body: JSON.stringify({views, faceStyle}),
       headers: {'content-type': 'application/json'}
-    })
+    }),
+  uploadFace: (token, slug, blob) =>
+    request(token, 'PUT', `/api/faces/${slug}`, {
+      body: blob,
+      headers: {'content-type': blob.type || 'image/jpeg'}
+    }),
+  removeFace: (token, slug) => request(token, 'DELETE', `/api/faces/${slug}`)
 };

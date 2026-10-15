@@ -1,6 +1,13 @@
-import {useEffect, useState} from 'react';
-import {API_BASE_URL} from '../config.js';
+import {useEffect, useRef, useState} from 'react';
+import {API_BASE_URL, faceUrl} from '../config.js';
 import {api} from './api.js';
+import {compressImage} from './imageTools.js';
+
+function slugify(title) {
+  return (
+    title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'face'
+  );
+}
 
 // Prefilled when no links are saved yet — prune, edit, and Save to publish.
 const SUGGESTED = [
@@ -23,6 +30,41 @@ export default function LinksEditor({token, run}) {
   const [links, setLinks] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [seeded, setSeeded] = useState(false);
+  const fileRef = useRef(null);
+  const uploadRow = useRef(null);
+
+  const pickImage = (i) => {
+    uploadRow.current = i;
+    fileRef.current?.click();
+  };
+
+  const onImageChosen = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const i = uploadRow.current;
+    if (!file || i == null) return;
+    run('Uploading face image…', async () => {
+      const slug = slugify(links[i].title || `link-${i}`);
+      // Face art renders small: 1000px is plenty and keeps faces snappy.
+      const c = await compressImage(file, {maxDim: 1000, quality: 0.8});
+      await api.uploadFace(token, slug, c.blob);
+      setLinks((l) =>
+        l.map((row, j) => (j === i ? {...row, image: slug, imageV: Date.now()} : row))
+      );
+      setDirty(true);
+      return 'Image uploaded — press Save to publish it on this link.';
+    });
+  };
+
+  const removeImage = (i) => {
+    const slug = links[i].image;
+    run('Removing face image…', async () => {
+      if (slug) await api.removeFace(token, slug).catch(() => {});
+      setLinks((l) => l.map((row, j) => (j === i ? {...row, image: '', imageV: 0} : row)));
+      setDirty(true);
+      return 'Image removed — press Save to publish the change.';
+    });
+  };
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/links`)
@@ -88,8 +130,20 @@ export default function LinksEditor({token, run}) {
           </button>
         </span>
       </div>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onImageChosen} />
       {links.map((link, i) => (
         <div key={i} className="link-row">
+          <button
+            className="face-thumb"
+            title={link.image ? 'Replace face image' : 'Upload a face image (screenshot of the site)'}
+            onClick={() => pickImage(i)}
+          >
+            {link.image ? (
+              <img src={faceUrl(link.image, link.imageV)} alt="" />
+            ) : (
+              <span>＋🖼</span>
+            )}
+          </button>
           <input
             className="link-title"
             placeholder="title"
@@ -115,6 +169,9 @@ export default function LinksEditor({token, run}) {
             onChange={(e) => edit(i, 'tag', e.target.value)}
           />
           <span className="link-buttons">
+            {link.image && (
+              <button onClick={() => removeImage(i)} title="Remove face image">🖼✕</button>
+            )}
             <button onClick={() => move(i, -1)} disabled={i === 0} title="Move up">↑</button>
             <button onClick={() => move(i, 1)} disabled={i === links.length - 1} title="Move down">↓</button>
             <button className="danger" onClick={() => remove(i)} title="Remove">✕</button>

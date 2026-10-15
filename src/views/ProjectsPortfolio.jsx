@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {API_BASE_URL} from '../config.js';
+import {API_BASE_URL, faceUrl} from '../config.js';
 import ProjectHedron from './ProjectHedron.jsx';
 
 const GITHUB_USER = 'ginoclement';
@@ -107,7 +107,16 @@ function Tile({link, index}) {
           background: `linear-gradient(135deg, hsl(${hue}, 60%, 86%), hsl(${(hue + 45) % 360}, 55%, 68%))`
         }}
       >
-        <span className="po-monogram">{link.title.slice(0, 1).toUpperCase()}</span>
+        {link.image ? (
+          <img
+            className="po-shot"
+            src={faceUrl(link.image, link.imageV)}
+            alt=""
+            loading="lazy"
+          />
+        ) : (
+          <span className="po-monogram">{link.title.slice(0, 1).toUpperCase()}</span>
+        )}
         {shown && LIVE_PREVIEWS && (
           <iframe
             src={link.url}
@@ -190,9 +199,14 @@ export default function ProjectsPortfolio() {
   const [repos, setRepos] = useState(null);
   const [links, setLinks] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [faceStyle, setFaceStyle] = useState('drift');
 
   useEffect(() => {
     if (API_BASE_URL) {
+      fetch(`${API_BASE_URL}/api/settings`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((json) => json.faceStyle && setFaceStyle(json.faceStyle))
+        .catch(() => {});
       fetch(`${API_BASE_URL}/api/links`)
         .then((r) => (r.ok ? r.json() : {links: []}))
         .then((json) => setLinks(json.links ?? []))
@@ -227,7 +241,7 @@ export default function ProjectsPortfolio() {
         Selected work — live previews, not screenshots. Hover a tile; click to
         visit.
       </p>
-      {links?.length >= 2 && <ProjectHedron links={links} />}
+      {links?.length >= 2 && <ProjectHedron links={links} faceStyle={faceStyle} />}
       <div className="po-grid">
         {(links ?? []).map((link, i) => (
           <Tile key={link.url} link={link} index={i} />
