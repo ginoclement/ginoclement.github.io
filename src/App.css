@@ -768,9 +768,9 @@
 }
 
 .ph-stage {
-  width: 340px;
-  height: 320px;
-  perspective: 950px;
+  width: min(620px, 94vw);
+  height: 540px;
+  perspective: 1250px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -823,17 +823,24 @@
 }
 
 .ph-label strong {
-  font-size: 15px;
+  font-size: 20px;
   line-height: 1.15;
-  max-width: 110px;
+  max-width: 170px;
 }
 
 .ph-label em {
   font-style: normal;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.85;
+}
+
+@media (max-width: 700px) {
+  .ph-stage {
+    transform: scale(0.62);
+    height: 360px;
+  }
 }
 
 .ph-caption {

@@ -157,7 +157,7 @@ export default function ProjectHedron({links, faceStyle = 'drift'}) {
   const dragRef = useRef({down: false, moved: 0, rx: -18, ry: 24, vx: 0.12, vy: 0.05, px: 0, py: 0});
 
   const solid = pickSolid(Math.max(links.length, 4));
-  const faces = useMemo(() => buildFaces(solid, 128), [solid]);
+  const faces = useMemo(() => buildFaces(solid, 205), [solid]);
 
   useEffect(() => {
     const el = solidRef.current;
@@ -190,9 +190,9 @@ export default function ProjectHedron({links, faceStyle = 'drift'}) {
     const state = dragRef.current;
     state.down = true;
     state.moved = 0;
+    state.captured = false;
     state.px = e.clientX;
     state.py = e.clientY;
-    e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e) => {
     const state = dragRef.current;
@@ -202,6 +202,12 @@ export default function ProjectHedron({links, faceStyle = 'drift'}) {
     state.px = e.clientX;
     state.py = e.clientY;
     state.moved += Math.abs(dx) + Math.abs(dy);
+    // Capture only once this is clearly a drag — capturing on pointerdown
+    // retargets the eventual click away from the face links.
+    if (!state.captured && state.moved > 8) {
+      state.captured = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
     state.ry += dx * 0.45;
     state.rx -= dy * 0.45;
     state.vx = dx * 0.12;
