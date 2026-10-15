@@ -10,7 +10,7 @@ import Timeline from './views/Timeline.jsx';
 import Folders from './views/Folders.jsx';
 import Stats from './views/Stats.jsx';
 import Mosaic from './views/Mosaic.jsx';
-import ProjectsOrbit from './views/ProjectsOrbit.jsx';
+import ProjectsPortfolio from './views/ProjectsPortfolio.jsx';
 import './App.css';
 
 const VIEWS = [
@@ -32,7 +32,7 @@ const HINTS = {
   folders: 'collections and their color signatures',
   stats: 'shooting habits, from EXIF',
   mosaic: 'photos made of photos',
-  projects: 'everything else in orbit'
+  projects: 'selected work, previewed live'
 };
 
 export default function App() {
@@ -162,7 +162,7 @@ export default function App() {
           {view === 'folders' && <Folders images={list} onSelect={setSelected} />}
           {view === 'stats' && <Stats images={list} onSelect={setSelected} />}
           {view === 'mosaic' && <Mosaic images={list} />}
-          {view === 'projects' && <ProjectsOrbit />}
+          {view === 'projects' && <ProjectsPortfolio />}
         </main>
       )}
     </div>
