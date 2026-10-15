@@ -168,6 +168,19 @@ export default function LinksEditor({token, run}) {
             value={link.tag}
             onChange={(e) => edit(i, 'tag', e.target.value)}
           />
+          <select
+            className="link-motion"
+            title="How this project's image moves on its face and tile"
+            value={link.motion ?? ''}
+            onChange={(e) => edit(i, 'motion', e.target.value)}
+          >
+            <option value="">motion: default</option>
+            <option value="still">still</option>
+            <option value="drift">drift</option>
+            <option value="zoom">zoom</option>
+            <option value="sway">sway</option>
+            <option value="parallax">parallax</option>
+          </select>
           <span className="link-buttons">
             {link.image && (
               <button onClick={() => removeImage(i)} title="Remove face image">🖼✕</button>

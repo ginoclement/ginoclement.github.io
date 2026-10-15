@@ -889,8 +889,40 @@
   background-position: calc(50% + var(--spin, 0px)) 50%;
 }
 
+.ph-zoom .ph-art {
+  background-size: cover;
+  animation: ph-zoom 14s ease-in-out infinite alternate;
+  animation-delay: var(--face-delay, 0s);
+}
+
+@keyframes ph-zoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.22);
+  }
+}
+
+.ph-sway .ph-art {
+  background-size: cover;
+  animation: ph-sway 18s ease-in-out infinite alternate;
+  animation-delay: var(--face-delay, 0s);
+}
+
+@keyframes ph-sway {
+  from {
+    transform: rotate(-2.4deg) scale(1.16);
+  }
+  to {
+    transform: rotate(2.4deg) scale(1.16);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ph-drift .ph-art {
+  .ph-drift .ph-art,
+  .ph-zoom .ph-art,
+  .ph-sway .ph-art {
     animation: none;
   }
 }
@@ -980,8 +1012,46 @@
   transform: scale(1.16);
 }
 
+.po-m-still {
+  animation: none;
+}
+
+.po-m-zoom {
+  animation: po-zoom 13s ease-in-out infinite alternate;
+}
+
+@keyframes po-zoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.2);
+  }
+}
+
+.po-m-sway {
+  animation: po-sway 17s ease-in-out infinite alternate;
+}
+
+@keyframes po-sway {
+  from {
+    transform: rotate(-2deg) scale(1.14);
+  }
+  to {
+    transform: rotate(2deg) scale(1.14);
+  }
+}
+
+.po-tile:hover .po-m-zoom,
+.po-tile:hover .po-m-sway {
+  animation-play-state: paused;
+  transform: scale(1.18);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .po-media {
+  .po-media,
+  .po-m-zoom,
+  .po-m-sway {
     animation: none;
   }
   .po-tile {

@@ -235,10 +235,11 @@ export default function ProjectHedron({links, faceStyle = 'drift'}) {
             const link = links[i];
             const hue = link ? accentHue(link.title) : 230;
             const hasImage = Boolean(link?.image);
+            const motion = link?.motion || faceStyle;
             return (
               <a
                 key={i}
-                className={`ph-face${link ? '' : ' blank'}${hasImage ? ` has-img ph-${faceStyle}` : ''}`}
+                className={`ph-face${link ? '' : ' blank'}${hasImage ? ` has-img ph-${motion}` : ''}`}
                 href={link?.url}
                 target="_blank"
                 rel="noreferrer"

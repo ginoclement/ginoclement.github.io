@@ -102,7 +102,7 @@ function Tile({link, index}) {
       }}
     >
       <div
-        className="po-media"
+        className={`po-media po-m-${(link.motion === 'parallax' ? 'drift' : link.motion) || 'drift'}`}
         style={{
           background: `linear-gradient(135deg, hsl(${hue}, 60%, 86%), hsl(${(hue + 45) % 360}, 55%, 68%))`
         }}

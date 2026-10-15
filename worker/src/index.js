@@ -323,7 +323,10 @@ async function handle(request, env) {
         description: String(l.description ?? '').slice(0, 300),
         tag: String(l.tag ?? '').slice(0, 40),
         image: /^[a-z0-9-]{1,60}$/.test(l.image ?? '') ? l.image : '',
-        imageV: Number(l.imageV) || 0
+        imageV: Number(l.imageV) || 0,
+        motion: ['still', 'drift', 'zoom', 'sway', 'parallax'].includes(l.motion)
+          ? l.motion
+          : ''
       }))
       .filter((l) => l.title && /^https?:\/\//.test(l.url));
     await env.PHOTOS.put(LINKS_KEY, JSON.stringify({links}), {
